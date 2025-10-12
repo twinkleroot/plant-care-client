@@ -3,6 +3,7 @@ import 'package:plant_care_app/models/plant_model.dart';
 import 'package:plant_care_app/screens/login_screen.dart';
 import 'package:plant_care_app/screens/plant_add_screen.dart';
 import 'package:plant_care_app/screens/plant_detail_screen.dart';
+import 'package:plant_care_app/services/ad_service.dart';
 import 'package:plant_care_app/services/api_service.dart';
 import 'package:plant_care_app/widgets/banner_ad_widget.dart';
 import 'package:plant_care_app/widgets/plant_card.dart';
@@ -99,12 +100,16 @@ class _PlantListScreenState extends State<PlantListScreen> {
   void _handleWaterPlant(int plantId) async {
     try {
       final updatedPlant = await ApiService.waterPlant(plantId);
-      final index = _plants.indexWhere((p) => p.plantId == plantId);
-      if (index != -1) {
-        setState(() {
-          _plants[index] = updatedPlant;
-        });
-      }
+      // 광고를 보여주고, 광고가 닫힌 후에 UI를 업데이트합니다.
+      AdService.showInterstitialAd(onAdDismissed: () {
+        if (!mounted) return;
+        final index = _plants.indexWhere((p) => p.plantId == plantId);
+        if (index != -1) {
+          setState(() {
+            _plants[index] = updatedPlant;
+          });
+        }
+      });
     } catch (e) {
       logger.e('물 주기 업데이트 실패: $e');
       if (mounted) {
@@ -171,7 +176,6 @@ class _PlantListScreenState extends State<PlantListScreen> {
         elevation: 1,
         actions: [
           // 정렬 버튼 및 로그아웃 버튼
-          // ❗️ [수정] 정렬 버튼 UI 변경
           IconButton(
             icon: const Icon(Icons.sort),
             tooltip: '정렬',

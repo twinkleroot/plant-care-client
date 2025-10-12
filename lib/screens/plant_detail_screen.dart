@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:plant_care_app/models/plant_model.dart';
 import 'package:plant_care_app/models/plant_update_model.dart';
+import 'package:plant_care_app/services/ad_service.dart';
 import 'package:plant_care_app/services/api_service.dart';
 import 'package:plant_care_app/widgets/banner_ad_widget.dart';
 import '../utils/logger.dart';
@@ -126,14 +127,17 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
 
     try {
       final updatedPlant = await ApiService.updatePlant(widget.plantId, updateData, _selectedImage);
-      if (mounted) {
-        setState(() {
-          _plantFuture = Future.value(updatedPlant);
-          _isEditMode = false;
-          _resultForReturn = updatedPlant; // 반환할 데이터를 업데이트된 Plant 객체로 설정
-        });
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('정보가 수정되었습니다.')));
-      }
+      // 광고를 보여주고, 광고가 닫힌 후에 UI를 업데이트합니다.
+      AdService.showInterstitialAd(onAdDismissed: () {
+        if (mounted) {
+          setState(() {
+            _plantFuture = Future.value(updatedPlant);
+            _isEditMode = false;
+            _resultForReturn = updatedPlant;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('정보가 수정되었습니다.')));
+        }
+      });
     } catch (e) {
       logger.e('식물 정보 수정 실패: $e');
       if (mounted) {
@@ -215,7 +219,7 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                 ),
               ],
             ),
-            // ❗️ [수정] body 구조를 Column으로 변경하여 광고 추가
+            // body 구조를 Column으로 변경하여 배너 광고 추가
             body: Column(
               children: [
                 Expanded(

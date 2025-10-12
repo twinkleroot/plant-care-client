@@ -28,7 +28,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
           primarySwatch: Colors.green,
           scaffoldBackgroundColor: const Color(0xFFF5F5F3),
-          fontFamily: 'Pretendard' // ❗️폰트 설정은 pubspec.yaml에도 추가해야 합니다.
+          fontFamily: 'Pretendard'
       ),
       home: const SplashScreen(),
     );
