@@ -41,29 +41,32 @@ class LoginScreen extends StatelessWidget {
       body: Center(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 50.0),
-          child: GestureDetector(
-            onTap: () => _loginWithKakao(context),
-            child: Container(
-              height: 50,
-              decoration: BoxDecoration(
-                color: const Color(0xFFFEE500), // 카카오 노란색
+          // GestureDetector와 Container를 ElevatedButton으로 변경
+          child: ElevatedButton(
+            onPressed: () => _loginWithKakao(context),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.white, // 배경색을 흰색으로 변경
+              foregroundColor: Colors.grey[300], // 클릭 시 효과 색상
+              elevation: 2, // 약간의 그림자 효과
+              shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Image.asset('assets/kakao_symbol.png', width: 24), // ❗️'assets/kakao_symbol.png' 이미지 필요
-                  const SizedBox(width: 10),
-                  const Text(
-                    '카카오로 시작하기',
-                    style: TextStyle(
-                      color: Color.fromRGBO(0, 0, 0, 0.85),
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
+              minimumSize: const Size(double.infinity, 50), // 버튼 높이 및 너비 설정
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Image.asset('assets/kakao_symbol.png', width: 24),
+                const SizedBox(width: 10),
+                const Text(
+                  '카카오로 시작하기',
+                  style: TextStyle(
+                    color: Color.fromRGBO(0, 0, 0, 0.85), // 카카오 공식 텍스트 색상
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),

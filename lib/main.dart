@@ -3,15 +3,19 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart';
 import 'package:plant_care_app/screens/splash_screen.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:plant_care_app/services/ad_service.dart';
+import '../utils/logger.dart';
 
 void main() async {
   // main 함수에서 비동기 작업을 수행하기 위해 필요
   WidgetsFlutterBinding.ensureInitialized();
 
   // .env 파일 로드. 앱 시작 시 딱 한 번만 호출하면 됩니다.
-  await dotenv.load(fileName: ".env");
+  const env = String.fromEnvironment('ENV', defaultValue: 'dev');
+  await dotenv.load(fileName: ".env.$env");
 
   MobileAds.instance.initialize();
+  AdService.loadInterstitialAd();
 
   KakaoSdk.init(nativeAppKey: dotenv.env['KAKAO_NATIVE_APP_KEY']!);
 

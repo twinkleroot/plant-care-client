@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:wechat_assets_picker/wechat_assets_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:plant_care_app/models/plant_create_model.dart';
 import 'package:plant_care_app/services/api_service.dart';
@@ -58,13 +58,22 @@ class _PlantAddScreenState extends State<PlantAddScreen> {
   }
 
   Future<void> _pickImage() async {
-    final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
+    final List<AssetEntity>? assets = await AssetPicker.pickAssets(
+      context,
+      pickerConfig: const AssetPickerConfig(
+        maxAssets: 1, // 한 장만 선택
+        requestType: RequestType.image, // 이미지만 선택
+        themeColor: Colors.green,
+      ),
+    );
 
-    if (pickedFile != null) {
-      setState(() {
-        _selectedImage = File(pickedFile.path);
-      });
+    if (assets != null && assets.isNotEmpty) {
+      final file = await assets.first.file;
+      if (file != null) {
+        setState(() {
+          _selectedImage = file;
+        });
+      }
     }
   }
 

@@ -34,7 +34,7 @@ class ApiService {
       await _storage.write(key: 'appToken', value: authResponse.appToken);
       return authResponse;
     } else {
-      throw Exception('Failed to login with server. status code : ${response.statusCode}, body : ${response.body}');
+      throw Exception('Failed to login with server. url : $url, body : ${response.body}');
     }
   }
 
@@ -43,7 +43,7 @@ class ApiService {
     final token = await _storage.read(key: 'appToken');
     if (token == null) throw Exception('No auth token found.');
 
-    final url = Uri.parse('$_baseUrl/plant-app/plants?page=$page&size=5&sort=$sort');
+    final url = Uri.parse('$_baseUrl/plant-app/plants?page=$page&size=20&sort=$sort');
     final response = await http.get(
       url,
       headers: {
