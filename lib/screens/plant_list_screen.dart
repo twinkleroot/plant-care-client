@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:plant_care_app/models/plant_model.dart';
+import 'package:plant_care_app/models/push_message_model.dart';
 import 'package:plant_care_app/screens/login_screen.dart';
 import 'package:plant_care_app/screens/plant_add_screen.dart';
 import 'package:plant_care_app/screens/plant_detail_screen.dart';
@@ -7,6 +8,8 @@ import 'package:plant_care_app/services/ad_service.dart';
 import 'package:plant_care_app/services/api_service.dart';
 import 'package:plant_care_app/widgets/banner_ad_widget.dart';
 import 'package:plant_care_app/widgets/plant_card.dart';
+import 'package:intl/intl.dart'; // DateFormat을 위해 import 추가
+import '../services/plant_update_service.dart';
 import '../utils/logger.dart';
 
 // 정렬 옵션을 관리하기 위한 Enum
@@ -37,16 +40,45 @@ class _PlantListScreenState extends State<PlantListScreen> {
   // 현재 정렬 상태를 관리하는 변수
   SortOption _currentSortOption = SortOption.latest;
 
+  // 읽지 않은 알림 상태를 관리하는 변수
+  bool _hasUnreadNotifications = false;
+
   @override
   void initState() {
     super.initState();
+    // _refreshAllData(); // 식물 리스트와 알림 상태를 함께 로드
     _loadPlants();
     _scrollController.addListener(() {
-      // 스크롤이 끝에 도달했고, 로딩 중이 아니며, 다음 페이지가 있을 때
-      if (_scrollController.position.pixels == _scrollController.position.maxScrollExtent && !_isLoading && _hasNextPage) {
+      if (_scrollController.position.pixels ==
+          _scrollController.position.maxScrollExtent &&
+          !_isLoading &&
+          _hasNextPage) {
         _loadPlants();
       }
     });
+
+    // PlantUpdateService의 알림을 구독
+    PlantUpdateService().plantIdToUpdate.addListener(_onPlantUpdated);
+  }
+
+  // 알림 상태를 확인하는 메서드
+  Future<void> _checkUnreadStatus() async {
+    try {
+      final hasUnread = await ApiService.hasUnreadMessages();
+      if (mounted) {
+        setState(() {
+          _hasUnreadNotifications = hasUnread;
+        });
+      }
+    } catch (e) {
+      logger.e('읽지 않은 알림 상태 확인 실패: $e');
+    }
+  }
+
+  // 식물 리스트와 알림 상태를 함께 새로고침하는 메서드
+  Future<void> _refreshAllData() async {
+    await _refreshPlants();
+    await _checkUnreadStatus();
   }
 
   Future<void> _loadPlants() async {
@@ -93,7 +125,7 @@ class _PlantListScreenState extends State<PlantListScreen> {
       setState(() {
         _currentSortOption = newSortOption;
       });
-      _refreshPlants(); // 리스트를 초기화하고 새로 불러옴
+      _refreshAllData(); // 정렬 시에도 알림 상태 포함하여 새로고침
     }
   }
 
@@ -121,6 +153,8 @@ class _PlantListScreenState extends State<PlantListScreen> {
   @override
   void dispose() {
     _scrollController.dispose();
+    // 구독 해제
+    PlantUpdateService().plantIdToUpdate.removeListener(_onPlantUpdated);
     super.dispose();
   }
 
@@ -167,6 +201,53 @@ class _PlantListScreenState extends State<PlantListScreen> {
     );
   }
 
+  // 알림 목록을 보여주는 Modal Bottom Sheet
+  void _showNotificationSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true, // 높이를 동적으로 조절
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.5,
+          maxChildSize: 0.8,
+          builder: (context, scrollController) {
+            return _NotificationList(
+              scrollController: scrollController,
+              onStatusChange: _checkUnreadStatus,
+            );
+          },
+        );
+      },
+    ).whenComplete(() {
+      // Bottom Sheet가 어떤 방식으로든 닫혔을 때 상태를 다시 확인
+      _checkUnreadStatus();
+    });
+  }
+
+  // 업데이트 알림을 받았을 때 실행될 메서드
+  void _onPlantUpdated() {
+    final plantId = PlantUpdateService().plantIdToUpdate.value;
+    if (plantId != null) {
+      // 리스트에 해당 식물이 있는지 확인
+      final index = _plants.indexWhere((p) => p.plantId == plantId);
+      if (index != -1) {
+        logger.i('FCM 수신: plantId $plantId의 정보를 업데이트합니다.');
+        // 해당 식물의 정보만 다시 불러와서 교체
+        ApiService.getPlantDetail(plantId).then((updatedPlant) {
+          if (mounted) {
+            setState(() {
+              _plants[index] = updatedPlant;
+            });
+          }
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -175,6 +256,30 @@ class _PlantListScreenState extends State<PlantListScreen> {
         backgroundColor: Colors.white,
         elevation: 1,
         actions: [
+          // 알림 아이콘 버튼을 Stack으로 감싸 빨간 점 표시
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.notifications_none),
+                tooltip: '알림',
+                onPressed: _showNotificationSheet,
+              ),
+              if (_hasUnreadNotifications)
+                Positioned(
+                  top: 12,
+                  right: 12,
+                  child: Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      color: Colors.red,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+            ],
+          ),
           // 정렬 버튼 및 로그아웃 버튼
           IconButton(
             icon: const Icon(Icons.sort),
@@ -198,7 +303,7 @@ class _PlantListScreenState extends State<PlantListScreen> {
         children: [
           Expanded(
             child: RefreshIndicator(
-              onRefresh: _refreshPlants,
+              onRefresh: _refreshAllData,
               color: Colors.green,
               child: Column(
                 children: [
@@ -228,7 +333,6 @@ class _PlantListScreenState extends State<PlantListScreen> {
                   // --- 식물 리스트 ---
                   Expanded(
                     child: ListView.builder(
-                      // ❗️ [수정] 하단 패딩 제거
                       physics: const AlwaysScrollableScrollPhysics(),
                       controller: _scrollController,
                       itemCount: _plants.length + 1,
@@ -291,6 +395,115 @@ class _PlantListScreenState extends State<PlantListScreen> {
           ),
         ],
       ),
+    );
+  }
+}
+
+// 알림 목록을 표시하는 Stateful 위젯
+class _NotificationList extends StatefulWidget {
+  final ScrollController scrollController;
+  final VoidCallback onStatusChange; // 부모에게 상태 변경을 알릴 콜백
+
+  const _NotificationList({required this.scrollController, required this.onStatusChange});
+
+
+
+  @override
+  State<_NotificationList> createState() => _NotificationListState();
+}
+
+class _NotificationListState extends State<_NotificationList> {
+  Future<List<PushMessage>>? _messagesFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _messagesFuture = ApiService.getPushMessages();
+  }
+
+  void _markAsRead(PushMessage message) async {
+    if (message.isRead) return;
+    try {
+      await ApiService.markMessageAsRead(message.messageId);
+      setState(() {
+        message.isRead = true;
+      });
+      widget.onStatusChange(); // 상태 변경 알림
+    } catch (e) {
+      logger.e('메시지 읽음 처리 실패: $e');
+    }
+  }
+
+  void _deleteMessage(PushMessage message) async {
+    try {
+      await ApiService.deleteMessage(message.messageId);
+      setState(() {
+        // Future를 다시 호출하여 리스트를 갱신
+        _messagesFuture = ApiService.getPushMessages();
+      });
+      widget.onStatusChange(); // 상태 변경 알림
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('알림이 삭제되었습니다.')));
+      }
+    } catch(e) {
+      logger.e('메시지 삭제 실패: $e');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16.0),
+          child: Text('알림 목록', style: Theme.of(context).textTheme.titleLarge),
+        ),
+        Expanded(
+          child: FutureBuilder<List<PushMessage>>(
+            future: _messagesFuture,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snapshot.hasError) {
+                return const Center(child: Text('알림을 불러오는데 실패했습니다.'));
+              }
+              if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                return const Center(child: Text('새로운 알림이 없습니다.'));
+              }
+
+              final messages = snapshot.data!;
+              return ListView.builder(
+                controller: widget.scrollController,
+                itemCount: messages.length,
+                itemBuilder: (context, index) {
+                  final message = messages[index];
+                  return ListTile(
+                    onTap: () => _markAsRead(message),
+                    leading: Icon(
+                      message.isRead ? Icons.mark_email_read_outlined : Icons.mark_email_unread,
+                      color: message.isRead ? Colors.grey : Colors.green,
+                    ),
+                    title: Text(message.title, style: TextStyle(fontWeight: message.isRead ? FontWeight.normal : FontWeight.bold)),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(message.body),
+                        const SizedBox(height: 4),
+                        Text(DateFormat('yy/MM/dd HH:mm').format(message.createdAt), style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                      ],
+                    ),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.delete_outline, color: Colors.grey),
+                      onPressed: () => _deleteMessage(message),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }

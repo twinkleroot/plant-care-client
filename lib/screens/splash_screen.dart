@@ -49,7 +49,7 @@ class _SplashScreenState extends State<SplashScreen> {
           children: [
             Icon(Icons.eco, size: 60, color: Colors.green),
             SizedBox(height: 20),
-            Text('내 손안의 작은 정원', style: TextStyle(fontSize: 18, color: Colors.black54)),
+            Text('내 화초를 건강하게', style: TextStyle(fontSize: 20, color: Colors.black54)),
           ],
         ),
       ),

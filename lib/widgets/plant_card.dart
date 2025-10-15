@@ -116,10 +116,13 @@ class _PlantCardState extends State<PlantCard> with SingleTickerProviderStateMix
             children: [
               CircleAvatar(
                 radius: 30,
-                backgroundImage: plant.imageUrl != null
+                backgroundImage: plant.imageUrl != null && plant.imageStatus == 'COMPLETE'
                     ? NetworkImage(plant.imageUrl!)
-                    : const AssetImage('assets/default_plant.png') as ImageProvider, // ❗️'assets/default_plant.png' 이미지 필요
+                    : const AssetImage('assets/default_plant.png') as ImageProvider, // 'assets/default_plant.png' 이미지 필요
                 backgroundColor: Colors.grey[200],
+                child: plant.imageStatus == 'PROCESSING'
+                    ? const CircularProgressIndicator(strokeWidth: 2)
+                    : null,
               ),
               const SizedBox(width: 16),
               Expanded(

@@ -1,5 +1,5 @@
 name: plant_care_app
-description: "화초관리 앱 클라이언트 코드"
+description: "내 화초 시들기 전에:물주기 알림"
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.3+4
+version: 1.1.0+14
 
 environment:
   sdk: ^3.9.2
@@ -45,17 +45,20 @@ dependencies:
 
   flutter_dotenv: ^5.1.0
   logger: ^2.4.0
-#  image_picker: ^1.0.7
-  wechat_assets_picker: ^9.8.0 # 또는 최신 버전
+  image_picker: ^1.0.7
 
   # 캐싱을 위해 shared_preferences 패키지를 추가합니다.
   shared_preferences: ^2.2.2 # 또는 최신 버전
-
   # 구글 모바일 광고
   google_mobile_ads: ^6.0.0
 
   # 이미지 처리 및 리사이징 라이브러리
   image: ^4.1.7 # 또는 최신 버전
+
+  firebase_core: ^2.27.0
+  firebase_messaging: ^14.7.19
+  # 앱이 포그라운드 상태일 때 푸시 알림을 표시하기 위해 필요
+  flutter_local_notifications: ^17.0.0 # 또는 최신 버전
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.

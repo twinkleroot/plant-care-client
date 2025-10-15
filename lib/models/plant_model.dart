@@ -1,7 +1,8 @@
 class Plant {
   final int plantId;
   final String? nickname;
-  final String? imageUrl;
+  String? imageUrl;
+  String? imageStatus;
   final String? plantType;
   final DateTime startDate;
   final int decisionDay;
@@ -17,6 +18,7 @@ class Plant {
     required this.plantId,
     this.nickname,
     this.imageUrl,
+    this.imageStatus,
     this.plantType,
     required this.startDate,
     required this.decisionDay,
@@ -34,6 +36,7 @@ class Plant {
       plantId: json['plantId'],
       nickname: json['nickname'],
       imageUrl: json['imageUrl'],
+      imageStatus: json['imageStatus'],
       plantType: json['plantType'],
       startDate: DateTime.parse(json['startDate']),
       decisionDay: json['decisionDay'],

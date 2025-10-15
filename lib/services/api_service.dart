@@ -7,6 +7,7 @@ import 'dart:convert';
 import 'package:plant_care_app/models/auth_response_model.dart';
 import 'package:plant_care_app/models/plant_model.dart';
 import 'package:plant_care_app/models/plant_create_model.dart';
+import 'package:plant_care_app/models/push_message_model.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../models/plant_update_model.dart';
 import '../utils/logger.dart';
@@ -20,12 +21,15 @@ class ApiService {
   static const _storage = FlutterSecureStorage();
 
   // 카카오 로그인 후 우리 앱 서버에 로그인/가입 요청
-  static Future<AuthResponse> kakaoLogin(String kakaoAccessToken) async {
+  static Future<AuthResponse> kakaoLogin(String kakaoAccessToken, String? fcmToken) async {
     final url = Uri.parse('$_baseUrl/plant-app/auth/kakao');
     final response = await http.post(
       url,
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'accessToken': kakaoAccessToken}),
+      body: jsonEncode({
+        'accessToken': kakaoAccessToken,
+        'fcmToken': fcmToken,
+      }),
     );
 
     if (response.statusCode == 200) {
@@ -217,6 +221,66 @@ class ApiService {
       return Plant.fromJson(jsonDecode(utf8.decode(response.bodyBytes)));
     } else {
       throw Exception('Failed to water plant.');
+    }
+  }
+
+  // 메시지 목록 조회
+  static Future<List<PushMessage>> getPushMessages() async {
+    final token = await _storage.read(key: 'appToken');
+    if (token == null) throw Exception('No auth token found.');
+
+    final url = Uri.parse('$_baseUrl/plant-app/push-messages');
+    final response = await http.get(url, headers: {'Authorization': 'Bearer $token'});
+
+    if (response.statusCode == 200) {
+      final List<dynamic> body = jsonDecode(utf8.decode(response.bodyBytes));
+      return body.map((json) => PushMessage.fromJson(json)).toList();
+    } else {
+      throw Exception('Failed to load push messages.');
+    }
+  }
+
+  // 메시지 읽음 처리
+  static Future<PushMessage> markMessageAsRead(int messageId) async {
+    final token = await _storage.read(key: 'appToken');
+    if (token == null) throw Exception('No auth token found.');
+
+    final url = Uri.parse('$_baseUrl/plant-app/push-messages/$messageId/read');
+    final response = await http.put(url, headers: {'Authorization': 'Bearer $token'});
+
+    if (response.statusCode == 200) {
+      return PushMessage.fromJson(jsonDecode(utf8.decode(response.bodyBytes)));
+    } else {
+      throw Exception('Failed to mark message as read.');
+    }
+  }
+
+  // 메시지 삭제
+  static Future<void> deleteMessage(int messageId) async {
+    final token = await _storage.read(key: 'appToken');
+    if (token == null) throw Exception('No auth token found.');
+
+    final url = Uri.parse('$_baseUrl/plant-app/push-messages/$messageId');
+    final response = await http.delete(url, headers: {'Authorization': 'Bearer $token'});
+
+    if (response.statusCode != 204) {
+      throw Exception('Failed to delete message.');
+    }
+  }
+
+  static Future<bool> hasUnreadMessages() async {
+    final token = await _storage.read(key: 'appToken');
+    if (token == null) throw Exception('No auth token found.');
+
+    final url = Uri.parse('$_baseUrl/plant-app/push-messages/unread-status');
+    final response = await http.get(url, headers: {'Authorization': 'Bearer $token'});
+
+    if (response.statusCode == 200) {
+      final Map<String, dynamic> body = jsonDecode(utf8.decode(response.bodyBytes));
+      return body['hasUnread'] ?? false;
+    } else {
+      // 204 No Content 또는 다른 에러는 읽지 않은 메시지가 없는 것으로 간주
+      return false;
     }
   }
 }

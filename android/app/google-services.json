@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "376825375747",
+    "project_id": "my-plant-care-0202",
+    "storage_bucket": "my-plant-care-0202.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:376825375747:android:5b190b6fc6a3e8cfd43236",
+        "android_client_info": {
+          "package_name": "com.heeblings.plant_care_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCG_0I4cQplOP86ZjJqTLlzvtG8m4RtTHw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

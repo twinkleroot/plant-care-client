@@ -17,6 +17,9 @@ if (keystorePropertiesFile.exists()) {
 
 plugins {
     id("com.android.application")
+    // START: FlutterFire Configuration
+    id("com.google.gms.google-services")
+    // END: FlutterFire Configuration
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
@@ -28,6 +31,8 @@ android {
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
+        // desugaring을 활성화합니다.
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
@@ -68,4 +73,9 @@ android {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    // core library desugaring을 위한 의존성을 추가합니다.
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
 }

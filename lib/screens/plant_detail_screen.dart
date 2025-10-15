@@ -1,12 +1,12 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:plant_care_app/models/plant_model.dart';
 import 'package:plant_care_app/models/plant_update_model.dart';
 import 'package:plant_care_app/services/ad_service.dart';
 import 'package:plant_care_app/services/api_service.dart';
 import 'package:plant_care_app/widgets/banner_ad_widget.dart';
-import 'package:wechat_assets_picker/wechat_assets_picker.dart';
 import '../utils/logger.dart';
 
 class PlantDetailScreen extends StatefulWidget {
@@ -72,7 +72,7 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
     });
   }
 
-  // ❗️ [추가] 식물 종류 목록 불러오기 로직
+  // 식물 종류 목록 불러오기
   Future<void> _fetchPlantTypes() async {
     setState(() { _isLoadingTypes = true; });
     try {
@@ -92,22 +92,13 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
   }
 
   Future<void> _pickImage() async {
-    final List<AssetEntity>? assets = await AssetPicker.pickAssets(
-      context,
-      pickerConfig: const AssetPickerConfig(
-        maxAssets: 1,
-        requestType: RequestType.image,
-        themeColor: Colors.green,
-      ),
-    );
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
 
-    if (assets != null && assets.isNotEmpty) {
-      final file = await assets.first.file;
-      if (file != null) {
-        setState(() {
-          _selectedImage = file;
-        });
-      }
+    if (pickedFile != null) {
+      setState(() {
+        _selectedImage = File(pickedFile.path);
+      });
     }
   }
 
