@@ -8,7 +8,6 @@ import 'package:plant_care_app/firebase_options.dart';
 import 'package:plant_care_app/screens/splash_screen.dart';
 import 'package:plant_care_app/services/ad_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:plant_care_app/services/fcm_update_stream.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/logger.dart';
 
