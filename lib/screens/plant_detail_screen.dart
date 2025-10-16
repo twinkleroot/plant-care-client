@@ -26,7 +26,10 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
   dynamic _resultForReturn;
 
   // 수정 모드를 위한 컨트롤러
+  final _formKey = GlobalKey<FormState>();
   final _nicknameController = TextEditingController();
+  final _descriptionController = TextEditingController();
+  final _careInfoController = TextEditingController();
   final _startDateController = TextEditingController();
   final _lastWateredDateController = TextEditingController();
   final _lastRepottedDateController = TextEditingController();
@@ -50,6 +53,8 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
     _startDateController.dispose();
     _lastWateredDateController.dispose();
     _lastRepottedDateController.dispose();
+    _descriptionController.dispose();
+    _careInfoController.dispose();
     super.dispose();
   }
 
@@ -59,6 +64,8 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
       if (_isEditMode) {
         // 수정 모드 진입 시, 현재 데이터로 컨트롤러 및 변수 초기화
         _nicknameController.text = plant.nickname ?? '';
+        _descriptionController.text = plant.description ?? '';
+        _careInfoController.text = plant.careInfo ?? '';
         _startDate = plant.startDate;
         _startDateController.text = DateFormat('yyyy-MM-dd').format(plant.startDate);
         _lastWateredDate = plant.lastWateredDate;
@@ -80,6 +87,10 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
       if (mounted) {
         setState(() {
           _plantTypeOptions = types;
+          // 직접 입력한 식물 종류가 목록에 없으면, 임시로 추가하여 보여줌
+          if (_selectedPlantType != null && !_plantTypeOptions.contains(_selectedPlantType)) {
+            _plantTypeOptions.add(_selectedPlantType!);
+          }
           _isLoadingTypes = false;
         });
       }
@@ -115,7 +126,7 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
   }
 
   Future<void> _saveChanges() async {
-    if (_isSaving) return;
+    if (!_formKey.currentState!.validate() || _isSaving) return; // 유효성 검사 추가
     setState(() { _isSaving = true; });
 
     final updateData = PlantUpdate(
@@ -124,19 +135,33 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
       startDate: _startDate,
       lastWateredDate: _lastWateredDate,
       lastRepottedDate: _lastRepottedDate,
+      description: _descriptionController.text,
+      careInfo: _careInfoController.text,
     );
 
+    File? imageFileToDelete = _selectedImage;
+    bool isImageUpdate = imageFileToDelete != null;
+
     try {
-      final updatedPlant = await ApiService.updatePlant(widget.plantId, updateData, _selectedImage);
+      final updatedPlant = await ApiService.updatePlant(widget.plantId, updateData, imageFileToDelete);
       // 광고를 보여주고, 광고가 닫힌 후에 UI를 업데이트합니다.
-      AdService.showInterstitialAd(onAdDismissed: () {
+      AdService.showInterstitialAd(onAdDismissed: () async {
         if (mounted) {
-          setState(() {
-            _plantFuture = Future.value(updatedPlant);
-            _isEditMode = false;
-            _resultForReturn = updatedPlant;
-          });
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('정보가 수정되었습니다.')));
+          // 이미지를 수정하지 않은 경우 (즉시 갱신)
+          if (!isImageUpdate) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('정보가 수정되었습니다.')));
+          }
+          // 이미지를 수정한 경우 (비동기 갱신)
+          else {
+            setState(() {
+              _plantFuture = Future.value(updatedPlant);
+              _isEditMode = false;
+              _resultForReturn = updatedPlant; // 'PROCESSING' 상태를 반환
+            });
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('사진을 처리 중입니다...')));
+          }
+          // 업데이트된 Plant 객체를 반환하며 화면을 닫습니다.
+          Navigator.of(context).pop(updatedPlant);
         }
       });
     } catch (e) {
@@ -345,97 +370,140 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
 
   // --- 수정하기 위젯 ---
   Widget _buildEditView(Plant plant) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        GestureDetector(
-          onTap: _pickImage,
-          child: Center(
-            child: CircleAvatar(
-              radius: 60,
-              backgroundColor: Colors.grey[200],
-              backgroundImage: _selectedImage != null
-                  ? FileImage(_selectedImage!)
-                  : (plant.imageUrl != null ? NetworkImage(plant.imageUrl!) : const AssetImage('assets/default_plant.png')) as ImageProvider?,
-              child: _selectedImage == null && plant.imageUrl == null
-                  ? const Icon(Icons.camera_alt, color: Colors.grey, size: 40)
-                  : Stack(
-                      children: [
-                        Positioned(
-                          bottom: 0,
-                          right: 0,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: Colors.black54,
-                              borderRadius: BorderRadius.circular(20),
+    return Form(
+      key: _formKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          GestureDetector(
+            onTap: _pickImage,
+            child: Center(
+              child: CircleAvatar(
+                radius: 60,
+                backgroundColor: Colors.grey[200],
+                backgroundImage: _selectedImage != null
+                    ? FileImage(_selectedImage!)
+                    : (plant.imageUrl != null ? NetworkImage(plant.imageUrl!) : const AssetImage('assets/default_plant.png')) as ImageProvider?,
+                child: _selectedImage == null && plant.imageUrl == null
+                    ? const Icon(Icons.camera_alt, color: Colors.grey, size: 40)
+                    : Stack(
+                        children: [
+                          Positioned(
+                            bottom: 0,
+                            right: 0,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: Colors.black54,
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              padding: const EdgeInsets.all(4),
+                              child: const Icon(Icons.edit, color: Colors.white, size: 16),
                             ),
-                            padding: const EdgeInsets.all(4),
-                            child: const Icon(Icons.edit, color: Colors.white, size: 16),
                           ),
-                        ),
-                      ],
-                    ),
+                        ],
+                      ),
+              ),
             ),
           ),
-        ),
-        const SizedBox(height: 32),
-        TextFormField(
-          controller: _nicknameController,
-          decoration: const InputDecoration(labelText: '식물 애칭'),
-        ),
-        const SizedBox(height: 24),
-        // --- 식물 종류 드롭다운 ---
-        _isLoadingTypes
-            ? const Center(child: Padding(padding: EdgeInsets.all(8.0), child: CircularProgressIndicator()))
-            : DropdownButtonFormField<String>(
-                value: _selectedPlantType,
-                decoration: const InputDecoration(labelText: '식물 종류'),
-                items: _plantTypeOptions
-                    .map((type) => DropdownMenuItem(value: type, child: Text(type)))
-                    .toList(),
-                onChanged: (value) {
-                  setState(() {
-                    _selectedPlantType = value;
-                  });
-                },
-              ),
-        const SizedBox(height: 24),
-        TextFormField(
-          readOnly: true,
-          controller: _startDateController,
-          decoration: const InputDecoration(labelText: '키우기 시작한 날짜', suffixIcon: Icon(Icons.calendar_today)),
-          onTap: () => _selectDate(context, initialDate: _startDate, onDateSelected: (date) {
-            setState(() {
-              _startDate = date;
-              _startDateController.text = DateFormat('yyyy-MM-dd').format(date);
-            });
-          }),
-        ),
-        const SizedBox(height: 24),
-        TextFormField(
-          readOnly: true,
-          controller: _lastWateredDateController,
-          decoration: const InputDecoration(labelText: '마지막으로 물 준 날짜', suffixIcon: Icon(Icons.water_drop_outlined)),
-          onTap: () => _selectDate(context, initialDate: _lastWateredDate, onDateSelected: (date) {
-            setState(() {
-              _lastWateredDate = date;
-              _lastWateredDateController.text = DateFormat('yyyy-MM-dd').format(date);
-            });
-          }),
-        ),
-        const SizedBox(height: 24),
-        TextFormField(
-          readOnly: true,
-          controller: _lastRepottedDateController,
-          decoration: const InputDecoration(labelText: '마지막 분갈이 날짜', suffixIcon: Icon(Icons.yard_outlined)),
-          onTap: () => _selectDate(context, initialDate: _lastRepottedDate, onDateSelected: (date) {
-            setState(() {
-              _lastRepottedDate = date;
-              _lastRepottedDateController.text = DateFormat('yyyy-MM-dd').format(date);
-            });
-          }),
-        ),
-      ],
+          const SizedBox(height: 32),
+          TextFormField(
+            controller: _nicknameController,
+            decoration: const InputDecoration(labelText: '식물 애칭 (10자 이내로 입력해주세요.)'),
+            maxLength: 10,
+            validator: (value) {
+              if (value != null && value.length > 10) {
+                return '애칭은 10자 이내로 입력해주세요.';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 24),
+          // --- 식물 종류 드롭다운 ---
+          _isLoadingTypes
+              ? const Center(child: Padding(padding: EdgeInsets.all(8.0), child: CircularProgressIndicator()))
+              : DropdownButtonFormField<String>(
+                  value: _selectedPlantType,
+                  decoration: const InputDecoration(labelText: '식물 종류'),
+                  items: _plantTypeOptions
+                      .map((type) => DropdownMenuItem(value: type, child: Text(type)))
+                      .toList(),
+                  onChanged: (value) {
+                    setState(() {
+                      _selectedPlantType = value;
+                    });
+                  },
+                ),
+          const SizedBox(height: 24),
+          TextFormField(
+            readOnly: true,
+            controller: _startDateController,
+            decoration: const InputDecoration(labelText: '키우기 시작한 날짜', suffixIcon: Icon(Icons.calendar_today)),
+            onTap: () => _selectDate(context, initialDate: _startDate, onDateSelected: (date) {
+              setState(() {
+                _startDate = date;
+                _startDateController.text = DateFormat('yyyy-MM-dd').format(date);
+              });
+            }),
+          ),
+          const SizedBox(height: 24),
+          TextFormField(
+            readOnly: true,
+            controller: _lastWateredDateController,
+            decoration: const InputDecoration(labelText: '마지막으로 물 준 날짜', suffixIcon: Icon(Icons.water_drop_outlined)),
+            onTap: () => _selectDate(context, initialDate: _lastWateredDate, onDateSelected: (date) {
+              setState(() {
+                _lastWateredDate = date;
+                _lastWateredDateController.text = DateFormat('yyyy-MM-dd').format(date);
+              });
+            }),
+          ),
+          const SizedBox(height: 24),
+          TextFormField(
+            readOnly: true,
+            controller: _lastRepottedDateController,
+            decoration: const InputDecoration(labelText: '마지막 화분 갈아준 날짜', suffixIcon: Icon(Icons.yard_outlined)),
+            onTap: () => _selectDate(context, initialDate: _lastRepottedDate, onDateSelected: (date) {
+              setState(() {
+                _lastRepottedDate = date;
+                _lastRepottedDateController.text = DateFormat('yyyy-MM-dd').format(date);
+              });
+            }),
+          ),
+          const SizedBox(height: 24),
+          // 식물 정보 수정 필드
+          TextFormField(
+            controller: _descriptionController,
+            decoration: const InputDecoration(
+              labelText: '식물 정보 (200자 이내)',
+              alignLabelWithHint: true,
+            ),
+            maxLength: 200,
+            validator: (value) {
+              if (value != null && value.length > 200) {
+                return '200자 이내로 입력해주세요.';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 24),
+
+          // 관리 방법 수정 필드
+          TextFormField(
+            controller: _careInfoController,
+            decoration: const InputDecoration(
+              labelText: '관리 방법 (200자 이내)',
+              alignLabelWithHint: true,
+            ),
+            maxLength: 200,
+            validator: (value) {
+              if (value != null && value.length > 200) {
+                return '200자 이내로 입력해주세요.';
+              }
+              return null;
+            },
+          ),
+        ],
+      ),
     );
   }
 }

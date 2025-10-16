@@ -4,7 +4,8 @@ class PlantUpdate {
   final DateTime? lastWateredDate;
   final DateTime? lastRepottedDate;
   final String? plantType;
-  // plantType은 수정 불가 항목으로 가정하고 제외
+  final String? description;
+  final String? careInfo;
 
   PlantUpdate({
     this.nickname,
@@ -12,6 +13,8 @@ class PlantUpdate {
     this.lastWateredDate,
     this.lastRepottedDate,
     this.plantType,
+    this.description,
+    this.careInfo,
   });
 
   Map<String, dynamic> toJson() {
@@ -21,6 +24,8 @@ class PlantUpdate {
       'lastWateredDate': lastWateredDate?.toIso8601String().substring(0, 10),
       'lastRepottedDate': lastRepottedDate?.toIso8601String().substring(0, 10),
       'plantType': plantType,
+      'description': description,
+      'careInfo': careInfo,
     }..removeWhere((key, value) => value == null);
   }
 }

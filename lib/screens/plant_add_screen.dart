@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:plant_care_app/models/plant_create_model.dart';
 import 'package:plant_care_app/services/api_service.dart';
 import 'package:plant_care_app/widgets/banner_ad_widget.dart';
+import '../services/ad_service.dart';
 import '../utils/logger.dart';
 
 class PlantAddScreen extends StatefulWidget {
@@ -100,14 +101,26 @@ class _PlantAddScreenState extends State<PlantAddScreen> {
         lastWateredDate: _lastWateredDate,
       );
 
+      File? imageFileToDelete = _selectedImage;
+
       try {
         await ApiService.createPlant(plantData, _selectedImage);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('식물이 등록되었습니다!')),
-          );
-          Navigator.of(context).pop(true); // true를 반환하여 리스트 새로고침
-        }
+
+        // 광고를 보여주고, 광고가 닫힌 후에 후처리 작업을 수행합니다.
+        AdService.showInterstitialAd(onAdDismissed: () async {
+          // 임시 파일 삭제
+          if (imageFileToDelete != null) {
+            await imageFileToDelete.delete();
+            logger.i('임시 이미지 파일 삭제 성공: ${imageFileToDelete.path}');
+          }
+
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('식물이 등록되었습니다!')),
+            );
+            Navigator.of(context).pop(true); // true를 반환하여 리스트 새로고침
+          }
+        });
       } catch (e) {
         logger.e('식물 등록 실패: $e');
         if (mounted) {
@@ -165,14 +178,21 @@ class _PlantAddScreenState extends State<PlantAddScreen> {
                     const SizedBox(height: 32),
                     TextFormField(
                       controller: _nicknameController,
-                      decoration: const InputDecoration(labelText: '식물 애칭 (선택)'),
+                      decoration: const InputDecoration(labelText: '식물 애칭 (10자 이내로 입력해주세요.)'),
+                      maxLength: 10, // ❗️ 글자 수 제한 UI 표시
+                      validator: (value) { // ❗️ 유효성 검사 로직
+                        if (value != null && value.length > 10) {
+                          return '애칭은 10자 이내로 입력해주세요.';
+                        }
+                        return null;
+                      },
                     ),
                     const SizedBox(height: 24),
                     _isLoadingTypes
                         ? const Center(child: CircularProgressIndicator())
                         : DropdownButtonFormField<String>(
                       value: _selectedPlantType,
-                      decoration: const InputDecoration(labelText: '식물 종류 (선택)'),
+                      decoration: const InputDecoration(labelText: '식물 종류'),
                       items: _plantTypeOptions
                           .map((type) => DropdownMenuItem(value: type, child: Text(type)))
                           .toList(),
@@ -210,7 +230,7 @@ class _PlantAddScreenState extends State<PlantAddScreen> {
                       readOnly: true,
                       controller: _lastWateredDateController,
                       decoration: const InputDecoration(
-                        labelText: '마지막으로 물 준 날짜 (선택)',
+                        labelText: '마지막으로 물 준 날짜',
                         suffixIcon: Icon(Icons.water_drop_outlined),
                       ),
                       onTap: () => _selectDate(context, initialDate: _lastWateredDate, onDateSelected: (date) {

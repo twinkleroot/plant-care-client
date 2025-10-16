@@ -1,3 +1,4 @@
+import 'dart:async'; // StreamSubscription을 위해 import
 import 'package:flutter/material.dart';
 import 'package:plant_care_app/models/plant_model.dart';
 import 'package:plant_care_app/models/push_message_model.dart';
@@ -8,8 +9,8 @@ import 'package:plant_care_app/services/ad_service.dart';
 import 'package:plant_care_app/services/api_service.dart';
 import 'package:plant_care_app/widgets/banner_ad_widget.dart';
 import 'package:plant_care_app/widgets/plant_card.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart'; // DateFormat을 위해 import 추가
-import '../services/plant_update_service.dart';
 import '../utils/logger.dart';
 
 // 정렬 옵션을 관리하기 위한 Enum
@@ -30,24 +31,22 @@ class PlantListScreen extends StatefulWidget {
   State<PlantListScreen> createState() => _PlantListScreenState();
 }
 
-class _PlantListScreenState extends State<PlantListScreen> {
+class _PlantListScreenState extends State<PlantListScreen> with WidgetsBindingObserver {
   final List<Plant> _plants = [];
   bool _isLoading = false;
   int _currentPage = 0;
   bool _hasNextPage = true; // 더 불러올 페이지가 있는지 확인
   final ScrollController _scrollController = ScrollController();
-
-  // 현재 정렬 상태를 관리하는 변수
-  SortOption _currentSortOption = SortOption.latest;
-
-  // 읽지 않은 알림 상태를 관리하는 변수
-  bool _hasUnreadNotifications = false;
+  SortOption _currentSortOption = SortOption.latest;  // 현재 정렬 상태를 관리하는 변수
+  bool _hasUnreadNotifications = false; // 읽지 않은 알림 상태를 관리하는 변수
 
   @override
   void initState() {
     super.initState();
-    // _refreshAllData(); // 식물 리스트와 알림 상태를 함께 로드
-    _loadPlants();
+    // 앱 라이프사이클 리스너 등록
+    WidgetsBinding.instance.addObserver(this);
+
+    _refreshAllData();
     _scrollController.addListener(() {
       if (_scrollController.position.pixels ==
           _scrollController.position.maxScrollExtent &&
@@ -56,32 +55,63 @@ class _PlantListScreenState extends State<PlantListScreen> {
         _loadPlants();
       }
     });
-
-    // PlantUpdateService의 알림을 구독
-    PlantUpdateService().plantIdToUpdate.addListener(_onPlantUpdated);
   }
 
-  // 알림 상태를 확인하는 메서드
-  Future<void> _checkUnreadStatus() async {
-    try {
-      final hasUnread = await ApiService.hasUnreadMessages();
-      if (mounted) {
-        setState(() {
-          _hasUnreadNotifications = hasUnread;
-        });
-      }
-    } catch (e) {
-      logger.e('읽지 않은 알림 상태 확인 실패: $e');
+  // 앱 라이프사이클 변경 감지 메서드
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    // 앱이 백그라운드에서 다시 활성화될 때
+    if (state == AppLifecycleState.resumed) {
+      logger.i("앱이 포그라운드로 돌아왔습니다. 업데이트 플래그를 확인합니다.");
+      _checkForUpdates();
+      _checkUnreadStatus();
     }
   }
 
-  // 식물 리스트와 알림 상태를 함께 새로고침하는 메서드
-  Future<void> _refreshAllData() async {
-    await _refreshPlants();
-    await _checkUnreadStatus();
+  // X 업데이트 플래그를 확인하고 처리하는 메서드
+  // '부재중 알림'을 확인하고 처리하는 메서드
+  Future<void> _checkForUpdates() async {
+    final prefs = await SharedPreferences.getInstance();
+    final plantIdsToRefresh = prefs.getStringList('plants_to_refresh');
+
+    if (plantIdsToRefresh != null && plantIdsToRefresh.isNotEmpty) {
+      logger.i('업데이트 플래그 발견: $plantIdsToRefresh');
+      for (var idString in plantIdsToRefresh) {
+        final plantId = int.tryParse(idString);
+        if (plantId != null) {
+          _updateSinglePlant(plantId);
+        }
+      }
+      // 플래그 처리 후 즉시 삭제하여 중복 실행 방지
+      await prefs.remove('plants_to_refresh');
+    }
+  }
+
+  // 단일 식물 정보를 업데이트하는 공통 메서드
+  void _updateSinglePlant(int plantId) {
+    final index = _plants.indexWhere((p) => p.plantId == plantId);
+    if (index != -1) {
+      ApiService.getPlantDetail(plantId).then((updatedPlant) {
+        if (mounted) {
+          setState(() {
+            _plants[index] = updatedPlant;
+          });
+        }
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    // 앱 라이프사이클 리스너 해제
+    WidgetsBinding.instance.removeObserver(this);
+    _scrollController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadPlants() async {
+    if (!mounted) return;
     if (_isLoading) return; // 이미 로딩 중이면 중복 실행 방지
     setState(() {
       _isLoading = true;
@@ -150,12 +180,51 @@ class _PlantListScreenState extends State<PlantListScreen> {
     }
   }
 
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    // 구독 해제
-    PlantUpdateService().plantIdToUpdate.removeListener(_onPlantUpdated);
-    super.dispose();
+  // 알림 목록을 보여주는 Modal Bottom Sheet
+  void _showNotificationSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true, // 높이를 동적으로 조절
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.5,
+          maxChildSize: 0.8,
+          builder: (context, scrollController) {
+            return _NotificationList(
+              scrollController: scrollController,
+              onStatusChange: _checkUnreadStatus,
+            );
+          },
+        );
+      },
+    ).whenComplete(() {
+      // Bottom Sheet가 어떤 방식으로든 닫혔을 때 상태를 다시 확인
+      _checkUnreadStatus();
+    });
+  }
+
+  // 알림 상태를 확인하는 메서드
+  Future<void> _checkUnreadStatus() async {
+    try {
+      final hasUnread = await ApiService.hasUnreadMessages();
+      if (mounted) {
+        setState(() {
+          _hasUnreadNotifications = hasUnread;
+        });
+      }
+    } catch (e) {
+      logger.e('읽지 않은 알림 상태 확인 실패: $e');
+    }
+  }
+
+  // 식물 리스트와 알림 상태를 함께 새로고침하는 메서드
+  Future<void> _refreshAllData() async {
+    await _refreshPlants();
+    await _checkUnreadStatus();
   }
 
   // 정렬 옵션을 보여주는 Modal Bottom Sheet
@@ -199,53 +268,6 @@ class _PlantListScreenState extends State<PlantListScreen> {
         );
       },
     );
-  }
-
-  // 알림 목록을 보여주는 Modal Bottom Sheet
-  void _showNotificationSheet() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true, // 높이를 동적으로 조절
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        return DraggableScrollableSheet(
-          expand: false,
-          initialChildSize: 0.5,
-          maxChildSize: 0.8,
-          builder: (context, scrollController) {
-            return _NotificationList(
-              scrollController: scrollController,
-              onStatusChange: _checkUnreadStatus,
-            );
-          },
-        );
-      },
-    ).whenComplete(() {
-      // Bottom Sheet가 어떤 방식으로든 닫혔을 때 상태를 다시 확인
-      _checkUnreadStatus();
-    });
-  }
-
-  // 업데이트 알림을 받았을 때 실행될 메서드
-  void _onPlantUpdated() {
-    final plantId = PlantUpdateService().plantIdToUpdate.value;
-    if (plantId != null) {
-      // 리스트에 해당 식물이 있는지 확인
-      final index = _plants.indexWhere((p) => p.plantId == plantId);
-      if (index != -1) {
-        logger.i('FCM 수신: plantId $plantId의 정보를 업데이트합니다.');
-        // 해당 식물의 정보만 다시 불러와서 교체
-        ApiService.getPlantDetail(plantId).then((updatedPlant) {
-          if (mounted) {
-            setState(() {
-              _plants[index] = updatedPlant;
-            });
-          }
-        });
-      }
-    }
   }
 
   @override
@@ -316,7 +338,7 @@ class _PlantListScreenState extends State<PlantListScreen> {
                           MaterialPageRoute(builder: (_) => const PlantAddScreen()),
                         );
                         if (result == true) {
-                          _refreshPlants();
+                          _refreshAllData();
                         }
                       },
                       icon: const Icon(Icons.add, color: Colors.white),
@@ -346,17 +368,13 @@ class _PlantListScreenState extends State<PlantListScreen> {
                                     builder: (_) => PlantDetailScreen(plantId: plant.plantId)),
                               );
 
-                              if (result is Plant) {
-                                final plantIndex =
-                                _plants.indexWhere((p) => p.plantId == result.plantId);
-                                if (plantIndex != -1) {
-                                  setState(() {
-                                    _plants[plantIndex] = result;
-                                  });
-                                }
+                              _checkForUpdates();
+
+                              if (result is Plant) { // 텍스트 등 즉시 갱신이 필요한 경우
+                                _updateSinglePlant(result.plantId);
                               }
-                              else if (result == true) {
-                                _refreshPlants();
+                              else if (result == true) { // 삭제된 경우
+                                _refreshAllData();
                               }
                             },
                             child: PlantCard(
@@ -376,7 +394,7 @@ class _PlantListScreenState extends State<PlantListScreen> {
                           return const Center(
                               child: Padding(
                                 padding: EdgeInsets.all(16.0),
-                                child: Text("더 이상 식물이 없어요."),
+                                child: Text("더 이상 등록한 화초가 없어요."),
                               ));
                         }
                         return const SizedBox.shrink();

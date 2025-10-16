@@ -131,6 +131,14 @@ class _PlantCardState extends State<PlantCard> with SingleTickerProviderStateMix
                   children: [
                     Text(plant.nickname ?? '이름 없는 식물', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 4),
+                    if (plant.plantType != null && plant.plantType!.isNotEmpty) ...[
+                      Text(
+                        plant.plantType!,
+                        style: const TextStyle(color: Colors.grey, fontSize: 13),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                    ],
                     Text(
                       '함께한 지 ${plant.decisionDay + 1}일째',
                       style: const TextStyle(color: Colors.grey, fontSize: 13),
@@ -158,7 +166,7 @@ class _PlantCardState extends State<PlantCard> with SingleTickerProviderStateMix
             children: [
               _buildInfoColumn('마지막 물 준 날', plant.lastWateredDate != null ? DateFormat('yy/MM/dd').format(plant.lastWateredDate!) : '-'),
               _buildInfoColumn('다음 물 줄 날', nextWateringText, isAlert: plant.isWateringNeeded),
-              _buildInfoColumn('분갈이', plant.lastRepottedDate != null ? DateFormat('yy/MM/dd').format(plant.lastRepottedDate!) : '-'),
+              _buildInfoColumn('화분 갈아 준 날', plant.lastRepottedDate != null ? DateFormat('yy/MM/dd').format(plant.lastRepottedDate!) : '-'),
             ],
           ),
         ],

@@ -8,24 +8,26 @@ import 'package:plant_care_app/firebase_options.dart';
 import 'package:plant_care_app/screens/splash_screen.dart';
 import 'package:plant_care_app/services/ad_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:plant_care_app/services/plant_update_service.dart';
+import 'package:plant_care_app/services/fcm_update_stream.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/logger.dart';
 
+// 백그라운드 메시지 핸들러
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // Firebase를 초기화해야 shared_preferences 등을 사용할 수 있습니다.
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  logger.i("백그라운드에서 메시지 처리: ${message.messageId}");
+  logger.i("백그라운드에서 메시지 처리: ${message.data}");
 
-  // 이미지 처리 완료 메시지인 경우
   if (message.data['type'] == 'IMAGE_PROCESSED') {
     final plantId = message.data['plantId'];
     if (plantId != null) {
       // SharedPreferences에 업데이트가 필요한 plantId를 '플래그'로 남깁니다.
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('plant_id_to_refresh', plantId);
-      logger.i('백그라운드 업데이트 플래그 설정: plantId $plantId');
+      // '업데이트 할 목록'에 plantId를 추가합니다. (여러 개가 될 수 있으므로 Set 사용)
+      final currentToRefresh = prefs.getStringList('plants_to_refresh')?.toSet() ?? {};
+      currentToRefresh.add(plantId);
+      await prefs.setStringList('plants_to_refresh', currentToRefresh.toList());
+      logger.i('백그라운드 업데이트 플래그 설정: $currentToRefresh');
     }
   }
 }
@@ -54,10 +56,9 @@ void main() async {
   runApp(const MyApp());
 }
 
-// ❗️ [추가] Firebase Messaging 설정을 담당하는 함수
+// Firebase Messaging 설정을 담당하는 함수
 Future<void> _setupFirebaseMessaging() async {
   final fcm = FirebaseMessaging.instance;
-
   // 1. (가장 중요) Android 13 이상에서 알림 권한 요청
   await fcm.requestPermission(
     alert: true,
@@ -77,29 +78,28 @@ Future<void> _setupFirebaseMessaging() async {
     importance: Importance.max,
   );
 
-  final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
-  FlutterLocalNotificationsPlugin();
-
+  final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
   await flutterLocalNotificationsPlugin
       .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
       ?.createNotificationChannel(channel);
 
-  // 앱이 포그라운드 상태일 때 메시지를 수신하면 이 리스너가 호출됨
-  FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-    // 1. 데이터 메시지인지 확인
+  // onMessage 리스너도 SharedPreferences에 플래그를 남기도록 통합
+  FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
     if (message.data['type'] == 'IMAGE_PROCESSED') {
-      final plantId = int.tryParse(message.data['plantId'] ?? '');
+      final plantId = message.data['plantId'];
       if (plantId != null) {
-        // PlantUpdateService를 통해 업데이트 알림
-        PlantUpdateService().notifyUpdate(plantId);
+        final prefs = await SharedPreferences.getInstance();
+        final currentToRefresh = prefs.getStringList('plants_to_refresh')?.toSet() ?? {};
+        currentToRefresh.add(plantId);
+        await prefs.setStringList('plants_to_refresh', currentToRefresh.toList());
+        logger.i('포그라운드 업데이트 플래그 설정: $currentToRefresh');
       }
-      return; // 데이터 메시지는 화면에 표시하지 않음
+      return;
     }
 
     // 2. 기존 알림 메시지 처리 로직
     RemoteNotification? notification = message.notification;
     AndroidNotification? android = message.notification?.android;
-
     if (notification != null && android != null) {
       flutterLocalNotificationsPlugin.show(
         notification.hashCode,
