@@ -274,7 +274,7 @@ class _PlantListScreenState extends State<PlantListScreen> with WidgetsBindingOb
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('내 식물들', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('내 초록 친구들', style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: Colors.white,
         elevation: 1,
         actions: [

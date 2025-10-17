@@ -8,6 +8,7 @@ import 'package:plant_care_app/firebase_options.dart';
 import 'package:plant_care_app/screens/splash_screen.dart';
 import 'package:plant_care_app/services/ad_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:plant_care_app/utils/navigator_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/logger.dart';
 
@@ -126,6 +127,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: NavigatorService.navigatorKey,
       title: '내 화초 시들기 전에: 물주기 알림',
       theme: ThemeData(
           primarySwatch: Colors.green,

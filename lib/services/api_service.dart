@@ -1,5 +1,5 @@
 import 'dart:io';
-
+import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart'; // MediaType을 위해 import 추가
@@ -10,8 +10,17 @@ import 'package:plant_care_app/models/plant_create_model.dart';
 import 'package:plant_care_app/models/push_message_model.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../models/plant_update_model.dart';
+import '../screens/login_screen.dart';
 import '../utils/logger.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../utils/navigator_service.dart';
+
+// 커스텀 예외 클래스
+class UnauthorizedException implements Exception {
+  final String message;
+  UnauthorizedException(this.message);
+}
 
 class ApiService {
   // Android 에뮬레이터에서는 localhost 대신 10.0.2.2를 사용해야 합니다.
@@ -19,6 +28,46 @@ class ApiService {
   // static const String _baseUrl = 'http://10.0.2.2:8080';
   static final String _baseUrl = dotenv.env['API_BASE_URL'] ?? 'http://192.168.35.145:8080';
   static const _storage = FlutterSecureStorage();
+
+  // 중앙 집중식 응답 및 에러 처리 메서드
+  static Future<String> _handleResponse(http.Response response) async {
+    // 401 Unauthorized 에러 발생 시 (토큰 만료 등)
+    if (response.statusCode == 401) {
+      await logout(); // 토큰 삭제
+      // 전역 navigatorKey를 사용하여 로그인 화면으로 이동
+      NavigatorService.navigatorKey.currentState?.pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
+            (Route<dynamic> route) => false,
+      );
+      throw UnauthorizedException('세션이 만료되었습니다. 다시 로그인해주세요.');
+    }
+
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return utf8.decode(response.bodyBytes);
+    } else {
+      final errorBody = utf8.decode(response.bodyBytes);
+      throw Exception('API 요청 실패: ${response.statusCode}, Body: $errorBody');
+    }
+  }
+
+  // Multipart 요청을 위한 별도의 핸들러
+  static Future<String> _handleMultipartResponse(http.StreamedResponse response) async {
+    if (response.statusCode == 401) {
+      await logout();
+      NavigatorService.navigatorKey.currentState?.pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
+            (Route<dynamic> route) => false,
+      );
+      throw UnauthorizedException('세션이 만료되었습니다. 다시 로그인해주세요.');
+    }
+
+    final responseBody = await response.stream.bytesToString();
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return responseBody;
+    } else {
+      throw Exception('API 요청 실패: ${response.statusCode}, Body: $responseBody');
+    }
+  }
 
   // 카카오 로그인 후 우리 앱 서버에 로그인/가입 요청
   static Future<AuthResponse> kakaoLogin(String kakaoAccessToken, String? fcmToken) async {
@@ -48,26 +97,12 @@ class ApiService {
     if (token == null) throw Exception('No auth token found.');
 
     final url = Uri.parse('$_baseUrl/plant-app/plants?page=$page&size=20&sort=$sort');
-    final response = await http.get(
-      url,
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-    );
+    final response = await http.get(url, headers: {'Authorization': 'Bearer $token'});
 
-    if (response.statusCode == 200) {
-      final Map<String, dynamic> body = jsonDecode(utf8.decode(response.bodyBytes));
-      final List<dynamic> content = body['content'];
-      return content.map((json) => Plant.fromJson(json)).toList();
-    } else {
-      throw Exception('Failed to load plants.');
-    }
-  }
-
-  // 로그아웃
-  static Future<void> logout() async {
-    await _storage.delete(key: 'appToken');
+    final responseBody = await _handleResponse(response);
+    final Map<String, dynamic> body = jsonDecode(responseBody);
+    final List<dynamic> content = body['content'];
+    return content.map((json) => Plant.fromJson(json)).toList();
   }
 
   // 식물 종류 목록
@@ -101,19 +136,15 @@ class ApiService {
       'Authorization': 'Bearer $token',
     });
 
-    if (response.statusCode == 200) {
-      // API 응답의 원본(문자열)을 그대로 저장해야 jsonDecode가 가능합니다.
-      final responseBody = utf8.decode(response.bodyBytes);
-      final List<dynamic> body = jsonDecode(responseBody);
+    // API 응답의 원본(문자열)을 그대로 저장해야 jsonDecode가 가능합니다.
+    final responseBody = await _handleResponse(response);
+    final List<dynamic> body = jsonDecode(responseBody);
 
-      // API 호출 성공 시, 새로운 데이터와 현재 시간을 기기에 저장합니다.
-      await prefs.setString(cacheKey, responseBody);
-      await prefs.setInt(timestampKey, DateTime.now().millisecondsSinceEpoch);
+    // API 호출 성공 시, 새로운 데이터와 현재 시간을 기기에 저장합니다.
+    await prefs.setString(cacheKey, responseBody);
+    await prefs.setInt(timestampKey, DateTime.now().millisecondsSinceEpoch);
 
-      return body.map((json) => json['plantTypeName'] as String).toList();
-    } else {
-      throw Exception('Failed to load plant types.');
-    }
+    return body.map((json) => json['plantTypeName'] as String).toList();
   }
 
   // 식물 등록
@@ -143,29 +174,18 @@ class ApiService {
     }
 
     final response = await request.send();
-
-    if (response.statusCode == 201) {
-      final responseBody = await response.stream.bytesToString();
-      return Plant.fromJson(jsonDecode(responseBody));
-    } else {
-      final responseBody = await response.stream.bytesToString();
-      throw Exception('Failed to create plant. Status: ${response.statusCode}, Body: $responseBody');
-    }
+    final responseBody = await _handleMultipartResponse(response);
+    return Plant.fromJson(jsonDecode(responseBody));
   }
 
   // 식물 상세 정보 조회
   static Future<Plant> getPlantDetail(int plantId) async {
     final token = await _storage.read(key: 'appToken');
     if (token == null) throw Exception('No auth token found.');
-
     final url = Uri.parse('$_baseUrl/plant-app/plants/$plantId');
     final response = await http.get(url, headers: {'Authorization': 'Bearer $token'});
-
-    if (response.statusCode == 200) {
-      return Plant.fromJson(jsonDecode(utf8.decode(response.bodyBytes)));
-    } else {
-      throw Exception('Failed to load plant detail.');
-    }
+    final responseBody = await _handleResponse(response);
+    return Plant.fromJson(jsonDecode(responseBody));
   }
 
   // 식물 정보 수정
@@ -188,40 +208,27 @@ class ApiService {
     }
 
     final response = await request.send();
-    if (response.statusCode == 200) {
-      final responseBody = await response.stream.bytesToString();
-      return Plant.fromJson(jsonDecode(responseBody));
-    } else {
-      throw Exception('Failed to update plant.');
-    }
+    final responseBody = await _handleMultipartResponse(response);
+    return Plant.fromJson(jsonDecode(responseBody));
   }
 
   // 식물 삭제
   static Future<void> deletePlant(int plantId) async {
     final token = await _storage.read(key: 'appToken');
     if (token == null) throw Exception('No auth token found.');
-
     final url = Uri.parse('$_baseUrl/plant-app/plants/$plantId');
     final response = await http.delete(url, headers: {'Authorization': 'Bearer $token'});
-
-    if (response.statusCode != 204) {
-      throw Exception('Failed to delete plant.');
-    }
+    await _handleResponse(response); // 응답 처리만 하고 반환값은 없음
   }
 
   // 물 줬음
   static Future<Plant> waterPlant(int plantId) async {
     final token = await _storage.read(key: 'appToken');
     if (token == null) throw Exception('No auth token found.');
-
     final url = Uri.parse('$_baseUrl/plant-app/plants/$plantId/water');
     final response = await http.put(url, headers: {'Authorization': 'Bearer $token'});
-
-    if (response.statusCode == 200) {
-      return Plant.fromJson(jsonDecode(utf8.decode(response.bodyBytes)));
-    } else {
-      throw Exception('Failed to water plant.');
-    }
+    final responseBody = await _handleResponse(response);
+    return Plant.fromJson(jsonDecode(responseBody));
   }
 
   // 메시지 목록 조회
@@ -231,13 +238,9 @@ class ApiService {
 
     final url = Uri.parse('$_baseUrl/plant-app/push-messages');
     final response = await http.get(url, headers: {'Authorization': 'Bearer $token'});
-
-    if (response.statusCode == 200) {
-      final List<dynamic> body = jsonDecode(utf8.decode(response.bodyBytes));
-      return body.map((json) => PushMessage.fromJson(json)).toList();
-    } else {
-      throw Exception('Failed to load push messages.');
-    }
+    final responseBody = await _handleResponse(response);
+    final List<dynamic> body = jsonDecode(responseBody);
+    return body.map((json) => PushMessage.fromJson(json)).toList();
   }
 
   // 메시지 읽음 처리
@@ -247,12 +250,8 @@ class ApiService {
 
     final url = Uri.parse('$_baseUrl/plant-app/push-messages/$messageId/read');
     final response = await http.put(url, headers: {'Authorization': 'Bearer $token'});
-
-    if (response.statusCode == 200) {
-      return PushMessage.fromJson(jsonDecode(utf8.decode(response.bodyBytes)));
-    } else {
-      throw Exception('Failed to mark message as read.');
-    }
+    final responseBody = await _handleResponse(response);
+    return PushMessage.fromJson(jsonDecode(responseBody));
   }
 
   // 메시지 삭제
@@ -262,10 +261,7 @@ class ApiService {
 
     final url = Uri.parse('$_baseUrl/plant-app/push-messages/$messageId');
     final response = await http.delete(url, headers: {'Authorization': 'Bearer $token'});
-
-    if (response.statusCode != 204) {
-      throw Exception('Failed to delete message.');
-    }
+    await _handleResponse(response);
   }
 
   static Future<bool> hasUnreadMessages() async {
@@ -274,13 +270,14 @@ class ApiService {
 
     final url = Uri.parse('$_baseUrl/plant-app/push-messages/unread-status');
     final response = await http.get(url, headers: {'Authorization': 'Bearer $token'});
-
-    if (response.statusCode == 200) {
-      final Map<String, dynamic> body = jsonDecode(utf8.decode(response.bodyBytes));
-      return body['hasUnread'] ?? false;
-    } else {
-      // 204 No Content 또는 다른 에러는 읽지 않은 메시지가 없는 것으로 간주
-      return false;
-    }
+    final responseBody = await _handleResponse(response);
+    final Map<String, dynamic> body = jsonDecode(responseBody);
+    return body['hasUnread'] ?? false;
   }
+
+  // 로그아웃
+  static Future<void> logout() async {
+    await _storage.delete(key: 'appToken');
+  }
+
 }
