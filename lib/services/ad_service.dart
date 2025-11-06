@@ -5,16 +5,19 @@ import '../utils/logger.dart';
 
 class AdService {
   static InterstitialAd? _interstitialAd;
-  static bool _isAdLoaded = false;
+  static bool _isLoading = false;  // 로드 중 중복 요청을 방지하기 위한 플래그
 
   // 전면 광고를 미리 로드하는 메서드
   static void loadInterstitialAd() {
     // 이미 로드되었거나 로드 중이면 중복 실행 방지
-    if (_isAdLoaded || _interstitialAd != null) return;
+    if (_isLoading || _interstitialAd != null) return;
+
+    _isLoading = true; // 로딩 시작
 
     final adUnitId = dotenv.env['GOOGLE_ADMOB_ID_ANDROID_FULLPAGE'];
     if (adUnitId == null) {
       logger.w('전면 광고 ID가 .env 파일에 설정되지 않았습니다.');
+      _isLoading = false;
       return;
     }
 
@@ -23,14 +26,20 @@ class AdService {
       request: const AdRequest(),
       adLoadCallback: InterstitialAdLoadCallback(
         onAdLoaded: (ad) {
+          logger.i('전면 광고 로드 성공: $ad');
           _interstitialAd = ad;
-          _isAdLoaded = true;
-          logger.i('전면 광고 로드 성공');
+          _isLoading = false;
         },
         onAdFailedToLoad: (error) {
-          _isAdLoaded = false;
-          _interstitialAd?.dispose();
           logger.e('전면 광고 로드 실패: $error');
+          _interstitialAd?.dispose();
+          _interstitialAd = null;
+          _isLoading = false;
+
+          // 반복적인 충돌을 방지하기 위해, 실패 시 1분 후에 재시도를 예약합니다.
+          Future.delayed(const Duration(minutes: 1), () {
+            loadInterstitialAd();
+          });
         },
       ),
     );
@@ -39,30 +48,35 @@ class AdService {
   // 전면 광고를 표시하는 메서드
   // 광고가 닫힌 후 실행될 콜백 함수(onAdDismissed)를 인자로 받습니다.
   static void showInterstitialAd({required VoidCallback onAdDismissed}) {
-    if (_isAdLoaded && _interstitialAd != null) {
-      _interstitialAd!.fullScreenContentCallback = FullScreenContentCallback(
-        // 광고가 닫혔을 때 호출
-        onAdDismissedFullScreenContent: (ad) {
-          onAdDismissed(); // 다음 액션 수행
-          ad.dispose();
-          _interstitialAd = null; // 광고 리소스 해제
-          loadInterstitialAd(); // 다음 광고를 위해 미리 로드
-        },
-        // 광고 표시에 실패했을 때 호출
-        onAdFailedToShowFullScreenContent: (ad, error) {
-          logger.w('전면 광고 표시 실패: $error');
-          onAdDismissed(); // 광고 없이 바로 다음 액션 수행
-          ad.dispose();
-          _interstitialAd = null;
-          loadInterstitialAd(); // 다음 광고를 위해 미리 로드
-        },
-      );
-      _interstitialAd!.show();
-      _isAdLoaded = false; // 광고가 한번 표시되면 로드되지 않은 상태로 변경
-    } else {
-      logger.w('전면 광고가 준비되지 않았습니다.');
+    if (_interstitialAd == null) {
+      logger.w('전면 광고가 준비되지 않았습니다. 다음 액션을 바로 실행합니다.');
       onAdDismissed(); // 광고가 준비되지 않았으면 바로 다음 액션 수행
       loadInterstitialAd(); // 다음을 위해 로드 시도
+      return;
     }
+    // 광고의 전체 화면 이벤트를 처리하는 콜백을 설정합니다.
+
+    _interstitialAd!.fullScreenContentCallback = FullScreenContentCallback(
+        // 광고가 닫혔을 때 호출
+      onAdFailedToShowFullScreenContent: (ad, error) {
+        logger.e('전면 광고 표시 실패: $error');
+        onAdDismissed(); // 광고 표시 실패 시에도 반드시 다음 액션을 수행합니다.
+        ad.dispose();
+        _interstitialAd = null;
+        loadInterstitialAd(); // 다음 광고를 위해 미리 로드합니다.
+      },
+      // 광고 표시에 실패했을 때 호출
+      onAdDismissedFullScreenContent: (ad) {
+        logger.i('전면 광고가 닫혔습니다.');
+        onAdDismissed(); // 광고가 정상적으로 닫혔을 때 다음 액션을 수행합니다.
+        ad.dispose();
+        _interstitialAd = null;
+        loadInterstitialAd(); // 다음 광고를 위해 미리 로드합니다.
+      },
+    );
+
+    // 광고를 표시합니다.
+    _interstitialAd!.show();
+    _interstitialAd = null; // 광고가 한번 표시되면 참조를 제거하여 중복 표시를 방지합니다.
   }
 }

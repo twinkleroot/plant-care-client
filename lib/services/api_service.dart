@@ -31,14 +31,10 @@ class ApiService {
 
   // 중앙 집중식 응답 및 에러 처리 메서드
   static Future<String> _handleResponse(http.Response response) async {
-    // 401 Unauthorized 에러 발생 시 (토큰 만료 등)
-    if (response.statusCode == 401) {
-      await logout(); // 토큰 삭제
-      // 전역 navigatorKey를 사용하여 로그인 화면으로 이동
-      NavigatorService.navigatorKey.currentState?.pushAndRemoveUntil(
-        MaterialPageRoute(builder: (context) => const LoginScreen()),
-            (Route<dynamic> route) => false,
-      );
+    // 401 Unauthorized(토큰 만료 등), 403 Forbidden(권한 없음) 에러 발생 시
+    // TODO : 차후 앱의 확장시 403을 다른 처리로 분리하는 것이 좋다.
+    if (response.statusCode == 401 || response.statusCode == 403) {
+      await _handleUnauthorized();
       throw UnauthorizedException('세션이 만료되었습니다. 다시 로그인해주세요.');
     }
 
@@ -52,12 +48,9 @@ class ApiService {
 
   // Multipart 요청을 위한 별도의 핸들러
   static Future<String> _handleMultipartResponse(http.StreamedResponse response) async {
-    if (response.statusCode == 401) {
-      await logout();
-      NavigatorService.navigatorKey.currentState?.pushAndRemoveUntil(
-        MaterialPageRoute(builder: (context) => const LoginScreen()),
-            (Route<dynamic> route) => false,
-      );
+    // TODO : 차후 앱의 확장시 403을 다른 처리로 분리하는 것이 좋다.
+    if (response.statusCode == 401 || response.statusCode == 403) {
+      await _handleUnauthorized();
       throw UnauthorizedException('세션이 만료되었습니다. 다시 로그인해주세요.');
     }
 
@@ -67,6 +60,17 @@ class ApiService {
     } else {
       throw Exception('API 요청 실패: ${response.statusCode}, Body: $responseBody');
     }
+  }
+
+  // 401, 403 에러 시 공통 처리 로직
+  // TODO : 차후 앱의 확장시 403을 다른 처리로 분리하는 것이 좋다.
+  static Future<void> _handleUnauthorized() async {
+    await logout(); // 토큰 삭제
+    // 전역 navigatorKey를 사용하여 현재 화면이 무엇이든 로그인 화면으로 이동
+    NavigatorService.navigatorKey.currentState?.pushAndRemoveUntil(
+      MaterialPageRoute(builder: (context) => const LoginScreen()),
+          (Route<dynamic> route) => false,
+    );
   }
 
   // 카카오 로그인 후 우리 앱 서버에 로그인/가입 요청
@@ -81,6 +85,7 @@ class ApiService {
       }),
     );
 
+    // 로그인 API는 401 에러 처리가 필요 없으므로 직접 처리
     if (response.statusCode == 200) {
       final authResponse = AuthResponse.fromJson(jsonDecode(utf8.decode(response.bodyBytes)));
       // 발급받은 우리 앱 토큰을 안전하게 저장
@@ -94,7 +99,7 @@ class ApiService {
   // 식물 리스트 조회
   static Future<List<Plant>> getPlants(int page, String sort) async {
     final token = await _storage.read(key: 'appToken');
-    if (token == null) throw Exception('No auth token found.');
+    if (token == null) throw UnauthorizedException('No auth token found.');
 
     final url = Uri.parse('$_baseUrl/plant-app/plants?page=$page&size=20&sort=$sort');
     final response = await http.get(url, headers: {'Authorization': 'Bearer $token'});
@@ -129,7 +134,7 @@ class ApiService {
     // 캐시가 없거나 만료되었다면 API를 호출합니다.
     logger.i("식물 종류: API에서 새로고침합니다.");
     final token = await _storage.read(key: 'appToken');
-    if (token == null) throw Exception('No auth token found.');
+    if (token == null) throw UnauthorizedException('No auth token found.');
 
     final url = Uri.parse('$_baseUrl/plant-app/plants/plant-types');
     final response = await http.get(url, headers: {
@@ -150,7 +155,7 @@ class ApiService {
   // 식물 등록
   static Future<Plant> createPlant(PlantCreate plant, File? imageFile) async {
     final token = await _storage.read(key: 'appToken');
-    if (token == null) throw Exception('No auth token found.');
+    if (token == null) throw UnauthorizedException('No auth token found.');
 
     final url = Uri.parse('$_baseUrl/plant-app/plants');
     final request = http.MultipartRequest('POST', url);
@@ -181,7 +186,7 @@ class ApiService {
   // 식물 상세 정보 조회
   static Future<Plant> getPlantDetail(int plantId) async {
     final token = await _storage.read(key: 'appToken');
-    if (token == null) throw Exception('No auth token found.');
+    if (token == null) throw UnauthorizedException('No auth token found.');
     final url = Uri.parse('$_baseUrl/plant-app/plants/$plantId');
     final response = await http.get(url, headers: {'Authorization': 'Bearer $token'});
     final responseBody = await _handleResponse(response);
@@ -191,7 +196,7 @@ class ApiService {
   // 식물 정보 수정
   static Future<Plant> updatePlant(int plantId, PlantUpdate plant, File? imageFile) async {
     final token = await _storage.read(key: 'appToken');
-    if (token == null) throw Exception('No auth token found.');
+    if (token == null) throw UnauthorizedException('No auth token found.');
 
     final url = Uri.parse('$_baseUrl/plant-app/plants/$plantId');
     final request = http.MultipartRequest('PUT', url);
@@ -215,7 +220,7 @@ class ApiService {
   // 식물 삭제
   static Future<void> deletePlant(int plantId) async {
     final token = await _storage.read(key: 'appToken');
-    if (token == null) throw Exception('No auth token found.');
+    if (token == null) throw UnauthorizedException('No auth token found.');
     final url = Uri.parse('$_baseUrl/plant-app/plants/$plantId');
     final response = await http.delete(url, headers: {'Authorization': 'Bearer $token'});
     await _handleResponse(response); // 응답 처리만 하고 반환값은 없음
@@ -224,7 +229,7 @@ class ApiService {
   // 물 줬음
   static Future<Plant> waterPlant(int plantId) async {
     final token = await _storage.read(key: 'appToken');
-    if (token == null) throw Exception('No auth token found.');
+    if (token == null) throw UnauthorizedException('No auth token found.');
     final url = Uri.parse('$_baseUrl/plant-app/plants/$plantId/water');
     final response = await http.put(url, headers: {'Authorization': 'Bearer $token'});
     final responseBody = await _handleResponse(response);
@@ -234,7 +239,7 @@ class ApiService {
   // 메시지 목록 조회
   static Future<List<PushMessage>> getPushMessages() async {
     final token = await _storage.read(key: 'appToken');
-    if (token == null) throw Exception('No auth token found.');
+    if (token == null) throw UnauthorizedException('No auth token found.');
 
     final url = Uri.parse('$_baseUrl/plant-app/push-messages');
     final response = await http.get(url, headers: {'Authorization': 'Bearer $token'});
@@ -246,7 +251,7 @@ class ApiService {
   // 메시지 읽음 처리
   static Future<PushMessage> markMessageAsRead(int messageId) async {
     final token = await _storage.read(key: 'appToken');
-    if (token == null) throw Exception('No auth token found.');
+    if (token == null) throw UnauthorizedException('No auth token found.');
 
     final url = Uri.parse('$_baseUrl/plant-app/push-messages/$messageId/read');
     final response = await http.put(url, headers: {'Authorization': 'Bearer $token'});
@@ -257,7 +262,7 @@ class ApiService {
   // 메시지 삭제
   static Future<void> deleteMessage(int messageId) async {
     final token = await _storage.read(key: 'appToken');
-    if (token == null) throw Exception('No auth token found.');
+    if (token == null) throw UnauthorizedException('No auth token found.');
 
     final url = Uri.parse('$_baseUrl/plant-app/push-messages/$messageId');
     final response = await http.delete(url, headers: {'Authorization': 'Bearer $token'});
@@ -266,7 +271,7 @@ class ApiService {
 
   static Future<bool> hasUnreadMessages() async {
     final token = await _storage.read(key: 'appToken');
-    if (token == null) throw Exception('No auth token found.');
+    if (token == null) throw UnauthorizedException('No auth token found.');
 
     final url = Uri.parse('$_baseUrl/plant-app/push-messages/unread-status');
     final response = await http.get(url, headers: {'Authorization': 'Bearer $token'});

@@ -1,8 +1,9 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart';
-import 'package:plant_care_app/screens/plant_list_screen.dart';
-import 'package:plant_care_app/services/api_service.dart';
+import '../screens/plant_list_screen.dart';
+import '../services/api_service.dart';
 import '../utils/logger.dart';
 
 class LoginScreen extends StatelessWidget {
@@ -18,11 +19,33 @@ class LoginScreen extends StatelessWidget {
         // 사용자에게 알림을 표시할 수 있습니다.
       }
 
-      // 2. 카카오톡으로 로그인 시도
-      final installed = await isKakaoTalkInstalled();
-      OAuthToken token = await (installed
-          ? UserApi.instance.loginWithKakaoTalk()
-          : UserApi.instance.loginWithKakaoAccount());
+      OAuthToken token;
+      // 카카오톡 설치 여부 확인
+      if (await isKakaoTalkInstalled()) {
+        try {
+          // 카카오톡이 설치되어 있으면, 카카오톡으로 로그인
+          logger.i('카카오톡으로 로그인 시도');
+          token = await UserApi.instance.loginWithKakaoTalk();
+        } catch (error) {
+          logger.i('카카오톡으로 로그인 실패 $error');
+          // 사용자가 카카오톡 설치 후, 취소한 경우 등
+          // 카카오 계정으로 로그인 시도 (웹 브라우저)
+          if (error is PlatformException && error.code == 'CANCELED') {
+            // 사용자가 명시적으로 취소한 것이므로 여기서 중단
+            return;
+          }
+          logger.i('카카오 계정으로 로그인 재시도');
+          token = await UserApi.instance.loginWithKakaoAccount(
+            prompts: [Prompt.login],
+          );
+        }
+      } else {
+        // 카카오톡이 없으면, 웹 브라우저를 통해 카카오 계정으로 로그인
+        logger.i('카카오 계정으로 로그인 시도');
+        token = await UserApi.instance.loginWithKakaoAccount(
+          prompts: [Prompt.login],
+        );
+      }
 
       // 3. 카카오 accessToken과 발급받은 fcmToken을 함께 우리 서버로 전송합니다.
       await ApiService.kakaoLogin(token.accessToken, fcmToken);

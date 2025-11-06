@@ -2,11 +2,10 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
-import 'package:plant_care_app/models/plant_create_model.dart';
-import 'package:plant_care_app/services/api_service.dart';
-import 'package:plant_care_app/widgets/banner_ad_widget.dart';
-import '../services/ad_service.dart';
+import '../models/plant_create_model.dart';
+import '../services/api_service.dart';
 import '../utils/logger.dart';
+import '../widgets/banner_ad_widget.dart';
 
 class PlantAddScreen extends StatefulWidget {
   const PlantAddScreen({super.key});
@@ -26,7 +25,7 @@ class _PlantAddScreenState extends State<PlantAddScreen> {
   File? _selectedImage;
   DateTime? _startDate;
   DateTime? _lastWateredDate;
-  List<String> _plantTypeOptions = ['직접 입력'];
+  final List<String> _plantTypeOptions = ['직접 입력'];
   String? _selectedPlantType;
   bool _showCustomPlantTypeInput = false;
   bool _isRegistering = false;
@@ -81,6 +80,31 @@ class _PlantAddScreenState extends State<PlantAddScreen> {
     }
   }
 
+  // 안내 다이얼로그 헬퍼 메서드
+  Future<void> _showImageRefreshDialog() async {
+    if (!mounted) return;
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false, // 사용자가 확인 버튼을 누르도록 강제
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('📸 저장 완료'),
+          content: const SingleChildScrollView(
+            child: Text('식물 정보가 저장되었습니다.\n새 이미지가 바로 보이지 않으면,\n잠시 후 목록을 당겨 새로고침 해주세요.'),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('확인'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   void _submitForm() async {
     if (_formKey.currentState!.validate() && !_isRegistering) {
       if (_startDate == null) {
@@ -106,21 +130,30 @@ class _PlantAddScreenState extends State<PlantAddScreen> {
       try {
         await ApiService.createPlant(plantData, _selectedImage);
 
-        // 광고를 보여주고, 광고가 닫힌 후에 후처리 작업을 수행합니다.
-        AdService.showInterstitialAd(onAdDismissed: () async {
-          // 임시 파일 삭제
-          if (imageFileToDelete != null) {
-            await imageFileToDelete.delete();
-            logger.i('임시 이미지 파일 삭제 성공: ${imageFileToDelete.path}');
-          }
+        // 임시 파일 삭제
+        if (imageFileToDelete != null) {
+          await imageFileToDelete.delete();
+          logger.i('임시 이미지 파일 삭제 성공: ${imageFileToDelete.path}');
+        }
 
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('식물이 등록되었습니다!')),
-            );
-            Navigator.of(context).pop(true); // true를 반환하여 리스트 새로고침
-          }
-        });
+        if (_selectedImage != null) {
+          await _showImageRefreshDialog();
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('식물이 등록되었습니다!')),
+          );
+        }
+
+        if (mounted) {
+          Navigator.of(context).pop(true); // true를 반환하여 리스트 새로고침
+        }
+
+        // if (mounted) {
+        //   ScaffoldMessenger.of(context).showSnackBar(
+        //     const SnackBar(content: Text('식물이 등록되었습니다!')),
+        //   );
+        //   Navigator.of(context).pop(true); // true를 반환하여 리스트 새로고침
+        // }
       } catch (e) {
         logger.e('식물 등록 실패: $e');
         if (mounted) {

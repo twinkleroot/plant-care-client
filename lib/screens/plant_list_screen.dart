@@ -5,12 +5,12 @@ import 'package:plant_care_app/models/push_message_model.dart';
 import 'package:plant_care_app/screens/login_screen.dart';
 import 'package:plant_care_app/screens/plant_add_screen.dart';
 import 'package:plant_care_app/screens/plant_detail_screen.dart';
-import 'package:plant_care_app/services/ad_service.dart';
 import 'package:plant_care_app/services/api_service.dart';
 import 'package:plant_care_app/widgets/banner_ad_widget.dart';
 import 'package:plant_care_app/widgets/plant_card.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart'; // DateFormat을 위해 import 추가
+import '../services/fcm_update_stream.dart';
 import '../utils/logger.dart';
 
 // 정렬 옵션을 관리하기 위한 Enum
@@ -40,6 +40,9 @@ class _PlantListScreenState extends State<PlantListScreen> with WidgetsBindingOb
   SortOption _currentSortOption = SortOption.latest;  // 현재 정렬 상태를 관리하는 변수
   bool _hasUnreadNotifications = false; // 읽지 않은 알림 상태를 관리하는 변수
 
+  // 스트림 구독을 관리할 변수
+  StreamSubscription<int>? _updateSubscription;
+
   @override
   void initState() {
     super.initState();
@@ -54,6 +57,11 @@ class _PlantListScreenState extends State<PlantListScreen> with WidgetsBindingOb
           _hasNextPage) {
         _loadPlants();
       }
+    });
+
+    _updateSubscription = FcmUpdateStream().stream.listen((plantId) {
+      logger.i('실시간 업데이트 수신: plantId $plantId의 정보를 갱신합니다.');
+      _updateSinglePlant(plantId);
     });
   }
 
@@ -107,6 +115,7 @@ class _PlantListScreenState extends State<PlantListScreen> with WidgetsBindingOb
     // 앱 라이프사이클 리스너 해제
     WidgetsBinding.instance.removeObserver(this);
     _scrollController.dispose();
+    _updateSubscription?.cancel();
     super.dispose();
   }
 
@@ -162,16 +171,15 @@ class _PlantListScreenState extends State<PlantListScreen> with WidgetsBindingOb
   void _handleWaterPlant(int plantId) async {
     try {
       final updatedPlant = await ApiService.waterPlant(plantId);
-      // 광고를 보여주고, 광고가 닫힌 후에 UI를 업데이트합니다.
-      AdService.showInterstitialAd(onAdDismissed: () {
-        if (!mounted) return;
-        final index = _plants.indexWhere((p) => p.plantId == plantId);
-        if (index != -1) {
-          setState(() {
-            _plants[index] = updatedPlant;
-          });
-        }
-      });
+
+      // 전면 광고 로직 제거. UI를 즉시 업데이트합니다.
+      if (!mounted) return;
+      final index = _plants.indexWhere((p) => p.plantId == plantId);
+      if (index != -1) {
+        setState(() {
+          _plants[index] = updatedPlant;
+        });
+      }
     } catch (e) {
       logger.e('물 주기 업데이트 실패: $e');
       if (mounted) {
@@ -380,7 +388,7 @@ class _PlantListScreenState extends State<PlantListScreen> with WidgetsBindingOb
                             child: PlantCard(
                               plant: plant,
                               onWatered: () => _handleWaterPlant(plant.plantId),
-                            ),
+                            )
                           );
                         }
                         if (_isLoading) {

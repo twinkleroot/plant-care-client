@@ -2,11 +2,10 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
-import 'package:plant_care_app/models/plant_model.dart';
-import 'package:plant_care_app/models/plant_update_model.dart';
-import 'package:plant_care_app/services/ad_service.dart';
-import 'package:plant_care_app/services/api_service.dart';
-import 'package:plant_care_app/widgets/banner_ad_widget.dart';
+import '../models/plant_model.dart';
+import '../models/plant_update_model.dart';
+import '../services/api_service.dart';
+import '../widgets/banner_ad_widget.dart';
 import '../utils/logger.dart';
 
 class PlantDetailScreen extends StatefulWidget {
@@ -125,6 +124,30 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
     }
   }
 
+  Future<void> _showImageRefreshDialog() async {
+    if (!mounted) return;
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false, // 사용자가 확인 버튼을 누르도록 강제
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('📸 저장 완료'),
+          content: const SingleChildScrollView(
+            child: Text('식물 정보가 저장되었습니다.\n새 이미지가 바로 보이지 않으면,\n잠시 후 목록을 당겨 새로고침 해주세요.'),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('확인'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Future<void> _saveChanges() async {
     if (!_formKey.currentState!.validate() || _isSaving) return; // 유효성 검사 추가
     setState(() { _isSaving = true; });
@@ -144,26 +167,18 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
 
     try {
       final updatedPlant = await ApiService.updatePlant(widget.plantId, updateData, imageFileToDelete);
-      // 광고를 보여주고, 광고가 닫힌 후에 UI를 업데이트합니다.
-      AdService.showInterstitialAd(onAdDismissed: () async {
-        if (mounted) {
-          // 이미지를 수정하지 않은 경우 (즉시 갱신)
-          if (!isImageUpdate) {
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('정보가 수정되었습니다.')));
-          }
-          // 이미지를 수정한 경우 (비동기 갱신)
-          else {
-            setState(() {
-              _plantFuture = Future.value(updatedPlant);
-              _isEditMode = false;
-              _resultForReturn = updatedPlant; // 'PROCESSING' 상태를 반환
-            });
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('사진을 처리 중입니다...')));
-          }
-          // 업데이트된 Plant 객체를 반환하며 화면을 닫습니다.
-          Navigator.of(context).pop(updatedPlant);
-        }
-      });
+
+      // 이미지를 수정한 경우에만 안내 다이얼로그 표시
+      if (isImageUpdate) {
+        await _showImageRefreshDialog();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('정보가 수정되었습니다.')));
+      }
+
+      if (mounted) {
+        // 텍스트든 이미지든, 수정된 최신 Plant 객체를 반환하며 닫습니다.
+        Navigator.of(context).pop(updatedPlant);
+      }
     } catch (e) {
       logger.e('식물 정보 수정 실패: $e');
       if (mounted) {

@@ -6,9 +6,10 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart';
 import 'package:plant_care_app/firebase_options.dart';
 import 'package:plant_care_app/screens/splash_screen.dart';
-import 'package:plant_care_app/services/ad_service.dart';
+import 'package:plant_care_app/services/app_open_ad_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:plant_care_app/utils/navigator_service.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/logger.dart';
 
@@ -35,11 +36,9 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 void main() async {
   // main 함수에서 비동기 작업을 수행하기 위해 필요
   WidgetsFlutterBinding.ensureInitialized();
-
   // .env 파일 로드. 앱 시작 시 딱 한 번만 호출하면 됩니다.
   const env = String.fromEnvironment('ENV', defaultValue: 'dev');
   await dotenv.load(fileName: ".env.$env");
-
   // Firebase 앱 초기화
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
@@ -49,11 +48,26 @@ void main() async {
   await _setupFirebaseMessaging();
 
   MobileAds.instance.initialize();
-  AdService.loadInterstitialAd();
+  // 광고 서비스를 미리 생성합니다.
+  final adService = AppOpenAdService();
 
-  KakaoSdk.init(nativeAppKey: dotenv.env['KAKAO_NATIVE_APP_KEY']!);
+  // 카카오톡 앱 간 인증에 사용되는 customScheme을 추가합니다.
+  KakaoSdk.init(
+      nativeAppKey: dotenv.env['KAKAO_NATIVE_APP_KEY'],
+      javaScriptAppKey: dotenv.env['KAKAO_JAVASCRIPT_APP_KEY']
+  );
 
-  runApp(const MyApp());
+  // Provider를 통해 AdService를 앱에 주입합니다.
+  runApp(
+    MultiProvider(
+      providers: [
+        Provider<AppOpenAdService>(
+          create: (_) => adService,
+        ),
+      ],
+      child: const MyApp(),
+    ),
+  );
 }
 
 // Firebase Messaging 설정을 담당하는 함수
@@ -122,6 +136,7 @@ Future<void> _setupFirebaseMessaging() async {
 }
 
 class MyApp extends StatelessWidget {
+
   const MyApp({super.key});
 
   @override
