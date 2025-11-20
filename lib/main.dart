@@ -11,6 +11,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:plant_care_app/utils/navigator_service.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../services/fcm_update_stream.dart';
 import '../utils/logger.dart';
 
 // 백그라운드 메시지 핸들러
@@ -102,11 +103,15 @@ Future<void> _setupFirebaseMessaging() async {
     if (message.data['type'] == 'IMAGE_PROCESSED') {
       final plantId = message.data['plantId'];
       if (plantId != null) {
+        // 1. 안전장치: SharedPreferences에 저장
         final prefs = await SharedPreferences.getInstance();
         final currentToRefresh = prefs.getStringList('plants_to_refresh')?.toSet() ?? {};
         currentToRefresh.add(plantId);
         await prefs.setStringList('plants_to_refresh', currentToRefresh.toList());
         logger.i('포그라운드 업데이트 플래그 설정: $currentToRefresh');
+
+        // 2. 핵심: 실시간으로 리스트 화면에 알림 (이것이 즉시 갱신을 트리거합니다)
+        FcmUpdateStream().notifyUpdate(plantId);
       }
       return;
     }

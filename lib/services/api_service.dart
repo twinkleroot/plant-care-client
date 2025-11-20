@@ -105,9 +105,9 @@ class ApiService {
     final response = await http.get(url, headers: {'Authorization': 'Bearer $token'});
 
     final responseBody = await _handleResponse(response);
-    final Map<String, dynamic> body = jsonDecode(responseBody);
-    final List<dynamic> content = body['content'];
-    return content.map((json) => Plant.fromJson(json)).toList();
+    final List<dynamic> list = jsonDecode(responseBody);
+
+    return list.map((json) => Plant.fromJson(json)).toList();
   }
 
   // 식물 종류 목록
@@ -171,20 +171,44 @@ class ApiService {
     ));
 
     // 이미지 파일 파트 추가 (있는 경우)
-    if (imageFile != null) {
-      request.files.add(await http.MultipartFile.fromPath(
-        'image',
-        imageFile.path,
-      ));
-    }
+    // if (imageFile != null) {
+    //   request.files.add(await http.MultipartFile.fromPath(
+    //     'image',
+    //     imageFile.path,
+    //   ));
+    // }
 
     final response = await request.send();
     final responseBody = await _handleMultipartResponse(response);
     return Plant.fromJson(jsonDecode(responseBody));
   }
 
+  static Future<void> uploadPlantImage(String plantId, File imageFile) async {
+    final token = await _storage.read(key: 'appToken');
+    if (token == null) throw UnauthorizedException('No auth token found.');
+
+    // URL: /plant-app/plants/image-upload/{plantId}
+    final url = Uri.parse('$_baseUrl/plant-app/plants/image-upload/$plantId');
+
+    final request = http.MultipartRequest('POST', url);
+    request.headers['Authorization'] = 'Bearer $token';
+
+    // 이미지 파일 추가
+    request.files.add(await http.MultipartFile.fromPath(
+      'image', // 백엔드 @RequestPart("image")와 일치해야 함
+      imageFile.path,
+      contentType: MediaType('image', 'jpeg'), // Content-Type 명시
+    ));
+
+    final response = await request.send();
+
+    // 응답 처리 (성공 시 200 OK, 실패 시 예외 발생)
+    await _handleMultipartResponse(response);
+    logger.i('이미지 업로드 요청 완료: plantId=$plantId');
+  }
+
   // 식물 상세 정보 조회
-  static Future<Plant> getPlantDetail(int plantId) async {
+  static Future<Plant> getPlantDetail(String plantId) async {
     final token = await _storage.read(key: 'appToken');
     if (token == null) throw UnauthorizedException('No auth token found.');
     final url = Uri.parse('$_baseUrl/plant-app/plants/$plantId');
@@ -194,7 +218,7 @@ class ApiService {
   }
 
   // 식물 정보 수정
-  static Future<Plant> updatePlant(int plantId, PlantUpdate plant, File? imageFile) async {
+  static Future<Plant> updatePlant(String plantId, PlantUpdate plant, File? imageFile) async {
     final token = await _storage.read(key: 'appToken');
     if (token == null) throw UnauthorizedException('No auth token found.');
 
@@ -208,17 +232,13 @@ class ApiService {
       contentType: MediaType('application', 'json'),
     ));
 
-    if (imageFile != null) {
-      request.files.add(await http.MultipartFile.fromPath('image', imageFile.path));
-    }
-
     final response = await request.send();
     final responseBody = await _handleMultipartResponse(response);
     return Plant.fromJson(jsonDecode(responseBody));
   }
 
   // 식물 삭제
-  static Future<void> deletePlant(int plantId) async {
+  static Future<void> deletePlant(String plantId) async {
     final token = await _storage.read(key: 'appToken');
     if (token == null) throw UnauthorizedException('No auth token found.');
     final url = Uri.parse('$_baseUrl/plant-app/plants/$plantId');
@@ -227,7 +247,7 @@ class ApiService {
   }
 
   // 물 줬음
-  static Future<Plant> waterPlant(int plantId) async {
+  static Future<Plant> waterPlant(String plantId) async {
     final token = await _storage.read(key: 'appToken');
     if (token == null) throw UnauthorizedException('No auth token found.');
     final url = Uri.parse('$_baseUrl/plant-app/plants/$plantId/water');

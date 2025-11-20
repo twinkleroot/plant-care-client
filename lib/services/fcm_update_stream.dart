@@ -8,13 +8,13 @@ class FcmUpdateStream {
 
   // plantId를 전달하는 스트림 컨트롤러.
   // 여러 곳에서 구독할 수 있도록 broadcast 스트림으로 생성합니다.
-  final _controller = StreamController<int>.broadcast();
+  final _controller = StreamController<String>.broadcast();
 
   // 외부에서 이 스트림을 구독(listen)할 수 있도록 getter를 제공합니다.
-  Stream<int> get stream => _controller.stream;
+  Stream<String> get stream => _controller.stream;
 
   // 외부(예: main.dart의 FCM 리스너)에서 이벤트를 방송하는 메서드입니다.
-  void notifyUpdate(int plantId) {
+  void notifyUpdate(String plantId) {
     _controller.sink.add(plantId);
   }
 

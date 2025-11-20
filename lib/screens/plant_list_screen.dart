@@ -41,7 +41,7 @@ class _PlantListScreenState extends State<PlantListScreen> with WidgetsBindingOb
   bool _hasUnreadNotifications = false; // 읽지 않은 알림 상태를 관리하는 변수
 
   // 스트림 구독을 관리할 변수
-  StreamSubscription<int>? _updateSubscription;
+  StreamSubscription<String>? _updateSubscription;
 
   @override
   void initState() {
@@ -62,6 +62,15 @@ class _PlantListScreenState extends State<PlantListScreen> with WidgetsBindingOb
     _updateSubscription = FcmUpdateStream().stream.listen((plantId) {
       logger.i('실시간 업데이트 수신: plantId $plantId의 정보를 갱신합니다.');
       _updateSinglePlant(plantId);
+
+      // 안전장치로 SharedPreferences에서도 제거해줍니다.
+      SharedPreferences.getInstance().then((prefs) {
+        final current = prefs.getStringList('plants_to_refresh')?.toSet() ?? {};
+        if (current.contains(plantId)) {
+          current.remove(plantId);
+          prefs.setStringList('plants_to_refresh', current.toList());
+        }
+      });
     });
   }
 
@@ -86,10 +95,7 @@ class _PlantListScreenState extends State<PlantListScreen> with WidgetsBindingOb
     if (plantIdsToRefresh != null && plantIdsToRefresh.isNotEmpty) {
       logger.i('업데이트 플래그 발견: $plantIdsToRefresh');
       for (var idString in plantIdsToRefresh) {
-        final plantId = int.tryParse(idString);
-        if (plantId != null) {
-          _updateSinglePlant(plantId);
-        }
+        _updateSinglePlant(idString);
       }
       // 플래그 처리 후 즉시 삭제하여 중복 실행 방지
       await prefs.remove('plants_to_refresh');
@@ -97,7 +103,7 @@ class _PlantListScreenState extends State<PlantListScreen> with WidgetsBindingOb
   }
 
   // 단일 식물 정보를 업데이트하는 공통 메서드
-  void _updateSinglePlant(int plantId) {
+  void _updateSinglePlant(String plantId) {
     final index = _plants.indexWhere((p) => p.plantId == plantId);
     if (index != -1) {
       ApiService.getPlantDetail(plantId).then((updatedPlant) {
@@ -115,7 +121,7 @@ class _PlantListScreenState extends State<PlantListScreen> with WidgetsBindingOb
     // 앱 라이프사이클 리스너 해제
     WidgetsBinding.instance.removeObserver(this);
     _scrollController.dispose();
-    _updateSubscription?.cancel();
+    _updateSubscription?.cancel();  // 구독 해제 필수
     super.dispose();
   }
 
@@ -168,7 +174,7 @@ class _PlantListScreenState extends State<PlantListScreen> with WidgetsBindingOb
     }
   }
 
-  void _handleWaterPlant(int plantId) async {
+  void _handleWaterPlant(String plantId) async {
     try {
       final updatedPlant = await ApiService.waterPlant(plantId);
 

@@ -140,7 +140,7 @@ class _PlantCardState extends State<PlantCard> with SingleTickerProviderStateMix
                       const SizedBox(height: 4),
                     ],
                     Text(
-                      '함께한 지 ${plant.decisionDay + 1}일째',
+                      '함께한 지 ${plant.dDay + 1}일째',
                       style: const TextStyle(color: Colors.grey, fontSize: 13),
                     ),
                   ],
@@ -156,7 +156,10 @@ class _PlantCardState extends State<PlantCard> with SingleTickerProviderStateMix
                 ),
                 child: _isWatering
                     ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : Text('물 줬음', style: TextStyle(color: isWateredToday ? Colors.black54 : Colors.white)),
+                    : Text(
+                        isWateredToday ? '물 줬음' : '물 주기',
+                        style: TextStyle(color: isWateredToday ? Colors.black54 : Colors.white)
+                      ),
               )
             ],
           ),

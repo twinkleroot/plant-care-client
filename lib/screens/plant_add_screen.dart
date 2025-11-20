@@ -125,19 +125,18 @@ class _PlantAddScreenState extends State<PlantAddScreen> {
         lastWateredDate: _lastWateredDate,
       );
 
-      File? imageFileToDelete = _selectedImage;
+      bool hasImage = _selectedImage != null;
 
       try {
-        await ApiService.createPlant(plantData, _selectedImage);
+        // 1. 이미지 없이 텍스트 정보만 먼저 등록 (이때 DB에서 plantId가 생성됩니다)
+        final createdPlant = await ApiService.createPlant(plantData, null);
+        final plantId = createdPlant.plantId;
 
-        // 임시 파일 삭제
-        if (imageFileToDelete != null) {
-          await imageFileToDelete.delete();
-          logger.i('임시 이미지 파일 삭제 성공: ${imageFileToDelete.path}');
-        }
-
-        if (_selectedImage != null) {
+        if (hasImage) {
           await _showImageRefreshDialog();
+          // 2. 이미지가 있다면, 이미지 업로드 전용 API 호출
+          //    (이 API는 S3 업로드와 DB ImageStatus 업데이트를 비동기로 처리합니다)
+          await ApiService.uploadPlantImage(plantId, _selectedImage!);
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('식물이 등록되었습니다!')),

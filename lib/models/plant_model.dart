@@ -1,11 +1,11 @@
 class Plant {
-  final int plantId;
+  final String plantId;
   final String? nickname;
   String? imageUrl;
   String? imageStatus;
   final String? plantType;
   final DateTime startDate;
-  final int decisionDay;
+  final int dDay;
   final DateTime? lastWateredDate;
   final DateTime? nextWateringDate;
   final int? nextWateringDDay;
@@ -21,7 +21,7 @@ class Plant {
     this.imageStatus,
     this.plantType,
     required this.startDate,
-    required this.decisionDay,
+    required this.dDay,
     this.lastWateredDate,
     this.nextWateringDate,
     this.nextWateringDDay,
@@ -33,13 +33,16 @@ class Plant {
 
   factory Plant.fromJson(Map<String, dynamic> json) {
     return Plant(
-      plantId: json['plantId'],
+      plantId: json['plantId'].toString(),
       nickname: json['nickname'],
       imageUrl: json['imageUrl'],
       imageStatus: json['imageStatus'],
       plantType: json['plantType'],
-      startDate: DateTime.parse(json['startDate']),
-      decisionDay: json['decisionDay'],
+      startDate: json['startDate'] != null
+          ? DateTime.parse(json['startDate'])
+          : DateTime.now(),
+      // ❗️ [핵심 수정] dDay가 null이면 0으로 처리하여 에러 방지
+      dDay: json['dDay'] ?? 0,
       lastWateredDate: json['lastWateredDate'] != null
           ? DateTime.parse(json['lastWateredDate'])
           : null,

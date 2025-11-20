@@ -9,7 +9,7 @@ import '../widgets/banner_ad_widget.dart';
 import '../utils/logger.dart';
 
 class PlantDetailScreen extends StatefulWidget {
-  final int plantId;
+  final String plantId;
   const PlantDetailScreen({super.key, required this.plantId});
 
   @override
@@ -162,17 +162,20 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
       careInfo: _careInfoController.text,
     );
 
-    File? imageFileToDelete = _selectedImage;
-    bool isImageUpdate = imageFileToDelete != null;
+    bool isImageUpdate = _selectedImage != null;
 
     try {
-      final updatedPlant = await ApiService.updatePlant(widget.plantId, updateData, imageFileToDelete);
+      // 1. 텍스트 정보 업데이트 (이미지가 있어도 null로 보내는 로직은 ApiService 내부 또는 PlantService에서 처리)
+      final updatedPlant = await ApiService.updatePlant(widget.plantId, updateData, null);
 
-      // 이미지를 수정한 경우에만 안내 다이얼로그 표시
+      // 2. 이미지가 있다면 별도 업로드 API 호출
       if (isImageUpdate) {
         await _showImageRefreshDialog();
+        // 이미지 업로드 전용 API 호출
+        await ApiService.uploadPlantImage(widget.plantId, _selectedImage!);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('정보가 수정되었습니다.')));
+        Navigator.of(context).pop(updatedPlant);
       }
 
       if (mounted) {
@@ -323,7 +326,7 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
           ),
         ),
         const Divider(height: 48, thickness: 1),
-        _buildDetailInfoRow(Icons.calendar_today_outlined, '함께한 지', '${plant.decisionDay + 1}일째'),
+        _buildDetailInfoRow(Icons.calendar_today_outlined, '함께한 지', '${plant.dDay + 1}일째'),
         _buildDetailInfoRow(
             Icons.water_drop_outlined,
             '마지막 물 준 날',
