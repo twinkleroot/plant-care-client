@@ -197,7 +197,6 @@ class ApiService {
     request.files.add(await http.MultipartFile.fromPath(
       'image', // 백엔드 @RequestPart("image")와 일치해야 함
       imageFile.path,
-      contentType: MediaType('image', 'jpeg'), // Content-Type 명시
     ));
 
     final response = await request.send();

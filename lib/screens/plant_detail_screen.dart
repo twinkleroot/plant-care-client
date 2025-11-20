@@ -175,9 +175,7 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
         await ApiService.uploadPlantImage(widget.plantId, _selectedImage!);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('정보가 수정되었습니다.')));
-        Navigator.of(context).pop(updatedPlant);
       }
-
       if (mounted) {
         // 텍스트든 이미지든, 수정된 최신 Plant 객체를 반환하며 닫습니다.
         Navigator.of(context).pop(updatedPlant);
@@ -185,6 +183,7 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
     } catch (e) {
       logger.e('식물 정보 수정 실패: $e');
       if (mounted) {
+        setState(() { _isSaving = false; });
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('수정에 실패했습니다.')));
       }
     } finally {
