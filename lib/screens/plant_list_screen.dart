@@ -1,5 +1,6 @@
 import 'dart:async'; // StreamSubscription을 위해 import
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:plant_care_app/models/plant_model.dart';
 import 'package:plant_care_app/models/push_message_model.dart';
 import 'package:plant_care_app/screens/login_screen.dart';
@@ -10,8 +11,10 @@ import 'package:plant_care_app/widgets/banner_ad_widget.dart';
 import 'package:plant_care_app/widgets/plant_card.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart'; // DateFormat을 위해 import 추가
+import '../models/system_config_model.dart';
 import '../services/fcm_update_stream.dart';
 import '../utils/logger.dart';
+import '../widgets/guide_dialog.dart';
 
 // 정렬 옵션을 관리하기 위한 Enum
 enum SortOption {
@@ -25,7 +28,8 @@ enum SortOption {
 }
 
 class PlantListScreen extends StatefulWidget {
-  const PlantListScreen({super.key});
+  final SystemConfig? systemConfig; // 전달받을 설정
+  const PlantListScreen({super.key, this.systemConfig});
 
   @override
   State<PlantListScreen> createState() => _PlantListScreenState();
@@ -72,6 +76,50 @@ class _PlantListScreenState extends State<PlantListScreen> with WidgetsBindingOb
         }
       });
     });
+
+    // 화면이 빌드된 후 팝업 체크
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkPopups();
+    });
+  }
+
+  // 팝업 및 가이드 체크 로직
+  Future<void> _checkPopups() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    // 1. 앱 사용 가이드 (최초 실행 여부는 스플래시에서 이미 false로 바꿨으므로 별도 키 사용 권장하거나 로직 조정)
+    // 여기서는 간단히 'guide_shown' 키를 새로 사용합니다.
+    final bool guideShown = prefs.getBool('guide_shown') ?? false;
+    if (!guideShown) {
+      await GuideDialog.show(context);
+      await prefs.setBool('guide_shown', true);
+      // 가이드가 닫힌 후 팝업 진행
+    }
+
+    if (widget.systemConfig == null) return;
+    final config = widget.systemConfig!;
+
+    // 날짜 비교 유틸 (중복 제거 필요하지만 여기선 간단히 내장)
+    bool isWithinDate(String start, String end) {
+      final now = DateTime.now().toUtc().add(const Duration(hours: 9));
+      final todayStr = DateFormat('yyyy-MM-dd').format(now);
+      return todayStr.compareTo(start) >= 0 && todayStr.compareTo(end) <= 0;
+    }
+
+    // 2. 업데이트 안내 (다음에 보기 가능)
+    if (config.updateNotice != null && isWithinDate(config.updateNotice!.startDate, config.updateNotice!.endDate)) {
+      final packageInfo = await PackageInfo.fromPlatform();
+      // 버전 체크 로직 (생략, 스플래시와 동일)
+      // ... 조건 충족 시 showDialog
+      // "나중에", "업데이트" 버튼
+    }
+
+    // 3. 공지사항 (닫기 가능, '오늘 하루 안 보기'는 추가 구현 필요)
+    if (config.notice != null && isWithinDate(config.notice!.startDate, config.notice!.endDate)) {
+      // showDialog
+      // 제목: config.notice!.title
+      // 내용: config.notice!.content
+    }
   }
 
   // 앱 라이프사이클 변경 감지 메서드
@@ -315,6 +363,11 @@ class _PlantListScreenState extends State<PlantListScreen> with WidgetsBindingOb
                   ),
                 ),
             ],
+          ),
+          IconButton(
+            icon: const Icon(Icons.help_outline),
+            tooltip: '사용 가이드',
+            onPressed: () => GuideDialog.show(context),
           ),
           // 정렬 버튼 및 로그아웃 버튼
           IconButton(

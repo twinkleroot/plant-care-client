@@ -6,6 +6,7 @@ class PlantUpdate {
   final String? plantType;
   final String? description;
   final String? careInfo;
+  final bool? isImageDeleted;
 
   PlantUpdate({
     this.nickname,
@@ -15,6 +16,7 @@ class PlantUpdate {
     this.plantType,
     this.description,
     this.careInfo,
+    this.isImageDeleted,
   });
 
   Map<String, dynamic> toJson() {
@@ -26,6 +28,7 @@ class PlantUpdate {
       'plantType': plantType,
       'description': description,
       'careInfo': careInfo,
+      'isImageDeleted': isImageDeleted,
     }..removeWhere((key, value) => value == null);
   }
 }

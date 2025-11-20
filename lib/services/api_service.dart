@@ -10,6 +10,7 @@ import 'package:plant_care_app/models/plant_create_model.dart';
 import 'package:plant_care_app/models/push_message_model.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../models/plant_update_model.dart';
+import '../models/system_config_model.dart';
 import '../screens/login_screen.dart';
 import '../utils/logger.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -302,6 +303,23 @@ class ApiService {
   // 로그아웃
   static Future<void> logout() async {
     await _storage.delete(key: 'appToken');
+  }
+
+  // 시스템 설정 조회 API (로그인 전에도 호출 가능하도록 Authorization 헤더 제외 가능하나, 보안상 포함 권장)
+  // 스플래시에서 호출 시 토큰이 없을 수도 있으므로 예외 처리 필요.
+  // 여기서는 "공지사항은 로그인 후에만 뜬다"는 가정 하에 토큰을 사용합니다.
+  // 만약 로그인 전에도 강제 업데이트를 체크해야 한다면 SecurityConfig에서 /plant-app/system/** 을 permitAll 해야 합니다.
+  static Future<SystemConfig> getSystemConfig() async {
+    // 편의상 토큰 없이 호출 가능한 오픈 API로 가정하고 구현합니다.
+    // (백엔드 SecurityConfig에 /plant-app/system/** 허용 추가 필요)
+    final url = Uri.parse('$_baseUrl/plant-app/system/config');
+    final response = await http.get(url); // 헤더 없이 호출
+
+    if (response.statusCode == 200) {
+      return SystemConfig.fromJson(jsonDecode(utf8.decode(response.bodyBytes)));
+    } else {
+      throw Exception('시스템 설정 로드 실패');
+    }
   }
 
 }

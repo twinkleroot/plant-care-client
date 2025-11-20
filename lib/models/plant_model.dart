@@ -32,6 +32,19 @@ class Plant {
   });
 
   factory Plant.fromJson(Map<String, dynamic> json) {
+
+    // 날짜 파싱 안전하게 처리
+    final startDate = json['startDate'] != null
+        ? DateTime.parse(json['startDate'])
+        : DateTime.now();
+
+    // dDay를 클라이언트에서 직접 계산
+    // 오늘 날짜와 시작 날짜의 시간(Time) 성분을 제거하고 날짜 차이만 계산합니다.
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final start = DateTime(startDate.year, startDate.month, startDate.day);
+    final calculatedDDay = today.difference(start).inDays;
+
     return Plant(
       plantId: json['plantId'].toString(),
       nickname: json['nickname'],
@@ -41,8 +54,8 @@ class Plant {
       startDate: json['startDate'] != null
           ? DateTime.parse(json['startDate'])
           : DateTime.now(),
-      // ❗️ [핵심 수정] dDay가 null이면 0으로 처리하여 에러 방지
-      dDay: json['dDay'] ?? 0,
+      // 서버 값 대신 계산된 값 사용
+      dDay: calculatedDDay,
       lastWateredDate: json['lastWateredDate'] != null
           ? DateTime.parse(json['lastWateredDate'])
           : null,

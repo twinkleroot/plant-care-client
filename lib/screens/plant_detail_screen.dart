@@ -20,9 +20,11 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
   Future<Plant>? _plantFuture;
   bool _isEditMode = false;
   bool _isSaving = false;
-
   // 뒤로가기 시 리스트 화면에 전달할 최종 결과값
   dynamic _resultForReturn;
+
+  // 이미지 삭제 상태를 추적하는 변수
+  bool _isImageDeleted = false;
 
   // 수정 모드를 위한 컨트롤러
   final _formKey = GlobalKey<FormState>();
@@ -72,6 +74,7 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
         _lastRepottedDate = plant.lastRepottedDate;
         _lastRepottedDateController.text = plant.lastRepottedDate != null ? DateFormat('yyyy-MM-dd').format(plant.lastRepottedDate!) : '';
         _selectedImage = null; // 이미지 선택 초기화
+        _isImageDeleted = false;
         _selectedPlantType = plant.plantType;
         _fetchPlantTypes(); // 식물 종류 목록 불러오기
       }
@@ -108,8 +111,17 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
     if (pickedFile != null) {
       setState(() {
         _selectedImage = File(pickedFile.path);
+        _isImageDeleted = false; // 새 이미지를 선택했으므로 삭제 상태 취소
       });
     }
+  }
+
+  // 이미지 삭제 버튼 동작
+  void _deleteSelectedImage() {
+    setState(() {
+      _selectedImage = null; // 선택된 새 이미지 제거
+      _isImageDeleted = true; // 기존 이미지 삭제 플래그 설정
+    });
   }
 
   Future<void> _selectDate(BuildContext context, {required DateTime? initialDate, required Function(DateTime) onDateSelected}) async {
@@ -160,6 +172,7 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
       lastRepottedDate: _lastRepottedDate,
       description: _descriptionController.text,
       careInfo: _careInfoController.text,
+      isImageDeleted: _isImageDeleted,
     );
 
     bool isImageUpdate = _selectedImage != null;
@@ -387,40 +400,70 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
 
   // --- 수정하기 위젯 ---
   Widget _buildEditView(Plant plant) {
+    // 현재 보여줄 이미지 상태 결정
+    ImageProvider? bgImage;
+    if (_selectedImage != null) {
+      bgImage = FileImage(_selectedImage!);
+    } else if (!_isImageDeleted && plant.imageUrl != null) {
+      bgImage = NetworkImage(plant.imageUrl!);
+    } else {
+      bgImage = const AssetImage('assets/default_plant.png');
+    }
+
+    // 삭제 버튼을 보여줄지 여부 (이미지가 있을 때만)
+    bool showDeleteButton = _selectedImage != null || (!_isImageDeleted && plant.imageUrl != null);
+
     return Form(
       key: _formKey,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          GestureDetector(
-            onTap: _pickImage,
-            child: Center(
-              child: CircleAvatar(
-                radius: 60,
-                backgroundColor: Colors.grey[200],
-                backgroundImage: _selectedImage != null
-                    ? FileImage(_selectedImage!)
-                    : (plant.imageUrl != null ? NetworkImage(plant.imageUrl!) : const AssetImage('assets/default_plant.png')) as ImageProvider?,
-                child: _selectedImage == null && plant.imageUrl == null
-                    ? const Icon(Icons.camera_alt, color: Colors.grey, size: 40)
-                    : Stack(
-                        children: [
-                          Positioned(
-                            bottom: 0,
-                            right: 0,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: Colors.black54,
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              padding: const EdgeInsets.all(4),
-                              child: const Icon(Icons.edit, color: Colors.white, size: 16),
-                            ),
-                          ),
-                        ],
+          Center(
+            child: Stack(
+              children: [
+                GestureDetector(
+                  onTap: _pickImage,
+                  child: CircleAvatar(
+                    radius: 60,
+                    backgroundColor: Colors.grey[200],
+                    backgroundImage: bgImage,
+                    child: bgImage is AssetImage
+                        ? const Icon(Icons.camera_alt, color: Colors.grey, size: 40)
+                        : null,
+                  ),
+                ),
+                // 이미지 삭제 버튼 (X 아이콘)
+                if (showDeleteButton)
+                  Positioned(
+                    top: 0,
+                    right: 0,
+                    child: GestureDetector(
+                      onTap: _deleteSelectedImage,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: const BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle
+                        ),
+                        child: const Icon(Icons.close, size: 16, color: Colors.white),
                       ),
-              ),
-            ),
+                    ),
+                  ),
+                // 편집 아이콘 (오른쪽 아래)
+                Positioned(
+                  bottom: 0,
+                  right: 0,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    padding: const EdgeInsets.all(4),
+                    child: const Icon(Icons.edit, color: Colors.white, size: 16),
+                  ),
+                ),
+              ]
+            )
           ),
           const SizedBox(height: 32),
           TextFormField(
