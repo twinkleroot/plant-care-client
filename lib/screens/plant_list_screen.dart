@@ -11,6 +11,7 @@ import 'package:plant_care_app/widgets/banner_ad_widget.dart';
 import 'package:plant_care_app/widgets/plant_card.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart'; // DateFormat을 위해 import 추가
+import 'package:url_launcher/url_launcher.dart';
 import '../models/system_config_model.dart';
 import '../services/fcm_update_stream.dart';
 import '../utils/logger.dart';
@@ -83,6 +84,17 @@ class _PlantListScreenState extends State<PlantListScreen> with WidgetsBindingOb
     });
   }
 
+  // 버전 비교 유틸 (current < target 이면 true)
+  bool _isUpdateNeeded(String currentVersion, String targetVersion) {
+    List<int> c = currentVersion.split('.').map(int.parse).toList();
+    List<int> t = targetVersion.split('.').map(int.parse).toList();
+    for (int i = 0; i < 3; i++) {
+      if (c[i] < t[i]) return true;
+      if (c[i] > t[i]) return false;
+    }
+    return false;
+  }
+
   // 팝업 및 가이드 체크 로직
   Future<void> _checkPopups() async {
     final prefs = await SharedPreferences.getInstance();
@@ -106,19 +118,75 @@ class _PlantListScreenState extends State<PlantListScreen> with WidgetsBindingOb
       return todayStr.compareTo(start) >= 0 && todayStr.compareTo(end) <= 0;
     }
 
-    // 2. 업데이트 안내 (다음에 보기 가능)
+    // 2. 업데이트 안내 (강제성이 없는 일반 업데이트)
     if (config.updateNotice != null && isWithinDate(config.updateNotice!.startDate, config.updateNotice!.endDate)) {
       final packageInfo = await PackageInfo.fromPlatform();
-      // 버전 체크 로직 (생략, 스플래시와 동일)
-      // ... 조건 충족 시 showDialog
-      // "나중에", "업데이트" 버튼
+
+      // 현재 버전이 설정된 버전보다 낮을 때만 표시
+      if (_isUpdateNeeded(packageInfo.version, config.updateNotice!.version)) {
+        if (!mounted) return;
+        await showDialog(
+          context: context,
+          barrierDismissible: false, // 버튼을 눌러서 닫도록 유도
+          builder: (context) => AlertDialog(
+            title: const Text('업데이트 안내'),
+            content: const Text('새로운 기능이 추가된 최신 버전이 있습니다.\n지금 업데이트하시겠어요?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('나중에', style: TextStyle(color: Colors.grey)),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context); // 팝업 닫고 스토어 이동
+                  // 패키지명은 실제 앱의 패키지명으로 수정해주세요
+                  launchUrl(Uri.parse("https://play.google.com/store/apps/details?id=com.heeblings.plant_care_app"), mode: LaunchMode.externalApplication);
+                },
+                child: const Text('지금 업데이트', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+        );
+      }
     }
 
-    // 3. 공지사항 (닫기 가능, '오늘 하루 안 보기'는 추가 구현 필요)
+    // 3. 공지사항 (단순 알림)
     if (config.notice != null && isWithinDate(config.notice!.startDate, config.notice!.endDate)) {
-      // showDialog
-      // 제목: config.notice!.title
-      // 내용: config.notice!.content
+      // 오늘 날짜 확인
+      final now = DateTime.now().toUtc().add(const Duration(hours: 9));
+      final todayStr = DateFormat('yyyy-MM-dd').format(now);
+
+      // 마지막으로 '오늘 하루 안 보기'를 누른 날짜 확인
+      final lastShownDate = prefs.getString('notice_last_shown_date');
+
+      // 오늘 본 적이 없거나, 마지막으로 본 날짜가 오늘이 아니면 팝업 표시
+      if (lastShownDate != todayStr) {
+        if (!mounted) return;
+        await showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text(config.notice!.title),
+            content: SingleChildScrollView(
+              child: Text(config.notice!.content),
+            ),
+            actions: [
+              // '오늘 하루 안 보기' 버튼
+              TextButton(
+                onPressed: () async {
+                  // 오늘 날짜를 저장하여 하루 동안 팝업 차단
+                  await prefs.setString('notice_last_shown_date', todayStr);
+                  if (context.mounted) Navigator.pop(context);
+                },
+                child: const Text('오늘 하루 안 보기', style: TextStyle(color: Colors.grey, fontSize: 13)),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('닫기', style: TextStyle(color: Colors.green)),
+              ),
+            ],
+          ),
+        );
+      }
     }
   }
 
