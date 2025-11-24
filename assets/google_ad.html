@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="ad.size" content="width=320,height=480">
+    <title>내 화초 관리: 물주기 알림</title>
+    <style>
+        /* Google Fonts - Pretendard 느낌의 Noto Sans KR */
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap');
+
+        body {
+            margin: 0;
+            padding: 0;
+            width: 320px;
+            height: 480px;
+            font-family: 'Noto Sans KR', sans-serif;
+            overflow: hidden;
+            background-color: #F5F5F3; /* 앱 배경색과 동일 */
+            border: 1px solid #ddd;
+            box-sizing: border-box;
+            cursor: pointer;
+        }
+
+        .container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* 공통 텍스트 스타일 */
+        .text-frame {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            opacity: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        /* Frame 1: Hook */
+        #frame1 {
+            animation: fade1 10s infinite;
+        }
+        #frame1 .main-text {
+            font-size: 24px;
+            font-weight: 700;
+            color: #2E7D32; /* Green 800 */
+            margin-bottom: 10px;
+        }
+        #frame1 .icon {
+            font-size: 40px;
+            margin-bottom: 10px;
+        }
+
+        /* Frame 2: Feature */
+        #frame2 {
+            animation: fade2 10s infinite;
+        }
+        #frame2 .main-text {
+            font-size: 22px;
+            font-weight: 700;
+            color: #1B5E20;
+        }
+        #frame2 .sub-text {
+            font-size: 16px;
+            color: #555;
+            margin-top: 10px;
+        }
+
+        /* Frame 3: CTA */
+        #frame3 {
+            animation: fade3 10s infinite;
+        }
+        #frame3 .app-name {
+            font-size: 20px;
+            font-weight: 900;
+            color: #2E7D32;
+            margin-bottom: 20px;
+        }
+        .cta-button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 25px;
+            font-weight: bold;
+            font-size: 16px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            border: none;
+        }
+
+        /* 애니메이션 키프레임 (총 10초 루프) */
+        @keyframes fade1 {
+            0% { opacity: 0; transform: translateY(10px); }
+            5% { opacity: 1; transform: translateY(0); }
+            30% { opacity: 1; transform: translateY(0); }
+            35% { opacity: 0; transform: translateY(-10px); }
+            100% { opacity: 0; }
+        }
+
+        @keyframes fade2 {
+            0% { opacity: 0; }
+            30% { opacity: 0; transform: translateY(10px); }
+            35% { opacity: 1; transform: translateY(0); }
+            65% { opacity: 1; transform: translateY(0); }
+            70% { opacity: 0; transform: translateY(-10px); }
+            100% { opacity: 0; }
+        }
+
+        @keyframes fade3 {
+            0% { opacity: 0; }
+            65% { opacity: 0; transform: scale(0.9); }
+            70% { opacity: 1; transform: scale(1); }
+            95% { opacity: 1; transform: scale(1); }
+            100% { opacity: 0; }
+        }
+
+        /* 간단한 식물 아이콘 (CSS로 그림) */
+        .plant-icon {
+            width: 50px;
+            height: 50px;
+            background: #4CAF50;
+            border-radius: 0 50% 50% 50%;
+            transform: rotate(-45deg);
+            margin-bottom: 15px;
+            position: relative;
+        }
+        .plant-icon::after {
+            content: '';
+            position: absolute;
+            width: 25px;
+            height: 25px;
+            background: #81C784;
+            border-radius: 0 50% 50% 50%;
+            bottom: 0;
+            right: 0;
+        }
+
+    </style>
+    <!-- Google Ads Click Tag -->
+    <script type="text/javascript">
+        var clickTag = "https://play.google.com/store/apps/details?id=com.heeblings.plant_care_app"; // ❗️ 실제 앱 링크로 변경 권장 (업로드시엔 비워둬도 됨)
+    </script>
+</head>
+<body>
+<a href="javascript:window.open(window.clickTag)">
+    <div class="container">
+
+        <!-- Frame 1: 문제 제기 / Hook -->
+        <div id="frame1" class="text-frame">
+            <!--            <div class="icon">🍂</div> &lt;!&ndash; 이모지 사용 가능 &ndash;&gt;-->
+            <div class="main-text">
+                <!-- 텍스트 수정 영역 1 -->
+                내가 화초 물을<br>언제 줬더라?
+            </div>
+        </div>
+
+        <!-- Frame 2: 해결책 / Feature -->
+        <div id="frame2" class="text-frame">
+            <!--            <div class="plant-icon"></div>-->
+            <div class="main-text">
+                <!-- 텍스트 수정 영역 2 -->
+                물 주고 버튼<br>하나만 누르세요.
+            </div>
+            <div class="sub-text">잊지 않는 가장 쉬운 방법</div>
+        </div>
+
+        <!-- Frame 3: 앱 이름 및 CTA -->
+        <div id="frame3" class="text-frame">
+            <div class="app-name">
+                내 화초 관리:<br>물주기 알림
+            </div>
+            <button class="cta-button">
+                <!-- 텍스트 수정 영역 3 -->
+                다운로드
+            </button>
+        </div>
+
+    </div>
+</a>
+</body>
+</html>

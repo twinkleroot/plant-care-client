@@ -269,7 +269,7 @@ class ApiService {
   }
 
   // 메시지 읽음 처리
-  static Future<PushMessage> markMessageAsRead(int messageId) async {
+  static Future<PushMessage> markMessageAsRead(String messageId) async {
     final token = await _storage.read(key: 'appToken');
     if (token == null) throw UnauthorizedException('No auth token found.');
 
@@ -280,7 +280,7 @@ class ApiService {
   }
 
   // 메시지 삭제
-  static Future<void> deleteMessage(int messageId) async {
+  static Future<void> deleteMessage(String messageId) async {
     final token = await _storage.read(key: 'appToken');
     if (token == null) throw UnauthorizedException('No auth token found.');
 

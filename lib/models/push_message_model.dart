@@ -1,5 +1,5 @@
 class PushMessage {
-  final int messageId;
+  final String messageId;
   final String title;
   final String body;
   bool isRead;
@@ -15,10 +15,10 @@ class PushMessage {
 
   factory PushMessage.fromJson(Map<String, dynamic> json) {
     return PushMessage(
-      messageId: json['messageId'],
+      messageId: json['messageId'].toString(),
       title: json['title'],
       body: json['body'],
-      isRead: json['isRead'],
+      isRead: json['isRead'] ?? json['read'] ?? false,
       createdAt: DateTime.parse(json['createdAt']),
     );
   }
