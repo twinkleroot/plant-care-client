@@ -121,7 +121,7 @@ class _SplashScreenState extends State<SplashScreen> {
         // 시스템 설정을 다음 화면으로 넘겨서 공지사항 등을 처리할 수 있게 함
         _navigateToNextScreen(token, systemConfig);
       } else {
-        adService.showAppOpenAdIfAvailable(onAdDismissed: () {
+        adService.showAdIfAvailable(onAdDismissed: () {
           _navigateToNextScreen(token, systemConfig);
         });
       }

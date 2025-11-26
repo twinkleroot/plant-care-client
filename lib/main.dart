@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
@@ -71,6 +73,66 @@ void main() async {
   );
 }
 
+class MyApp extends StatefulWidget {
+  const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
+  bool _isAppInitialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+
+    if (state == AppLifecycleState.resumed) {
+      // 앱이 처음 시작될 때(Splash)가 아니라,
+      // 백그라운드에서 포그라운드로 돌아왔을 때(Warm Start)만 로직을 수행합니다.
+      if (_isAppInitialized) {
+        if (Random().nextBool()) {  // 50% 확률로 광고 표시
+          logger.i("앱이 포그라운드로 돌아왔습니다. (50% 당첨) 앱 오픈 광고를 시도합니다.");
+          // Provider를 통해 인스턴스를 가져와서 메서드 호출
+          // listen: false는 이 메서드 내에서 UI를 다시 빌드할 필요가 없기 때문입니다.
+          context.read<AppOpenAdService>().showAdIfAvailable(onAdDismissed: () {});
+        } else {
+          logger.i("앱이 포그라운드로 돌아왔습니다. (50% 미당첨) 광고를 건너뜁니다.");
+        }
+      } else {
+        // 앱이 처음 시작될 때는, SplashScreen이 광고를 처리하도록 플래그만 변경합니다.
+        _isAppInitialized = true;
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      navigatorKey: NavigatorService.navigatorKey,
+      title: '내 화초 시들기 전에: 물주기 알림',
+      theme: ThemeData(
+          primarySwatch: Colors.green,
+          scaffoldBackgroundColor: const Color(0xFFF5F5F3),
+          fontFamily: 'Pretendard'
+      ),
+      home: const SplashScreen(),
+    );
+  }
+}
+
 // Firebase Messaging 설정을 담당하는 함수
 Future<void> _setupFirebaseMessaging() async {
   final fcm = FirebaseMessaging.instance;
@@ -138,23 +200,4 @@ Future<void> _setupFirebaseMessaging() async {
 
   // 3. 백그라운드/종료 상태 메시지 핸들러 등록
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-}
-
-class MyApp extends StatelessWidget {
-
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      navigatorKey: NavigatorService.navigatorKey,
-      title: '내 화초 시들기 전에: 물주기 알림',
-      theme: ThemeData(
-          primarySwatch: Colors.green,
-          scaffoldBackgroundColor: const Color(0xFFF5F5F3),
-          fontFamily: 'Pretendard'
-      ),
-      home: const SplashScreen(),
-    );
-  }
 }

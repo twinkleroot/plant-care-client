@@ -10,6 +10,9 @@ class AppOpenAdService {
   bool _isShowingAd = false;
   bool _isAdLoaded = false;
 
+  // 로드 중인지 확인하는 플래그 (중복 로드 방지)
+  bool _isLoadingAd = false;
+
   // 광고 로드 완료를 보장하기 위한 Completer 추가
   Completer<void> _appOpenAdCompleter = Completer<void>();
 
@@ -37,6 +40,9 @@ class AppOpenAdService {
 
   // --- 앱 오프닝 광고 (App Open) ---
   Future<void> _loadAppOpenAd() async {
+    // 이미 로드되어 있거나, 로딩 중이면 중단
+    if (_isAdLoaded || _isLoadingAd) return;
+
     if (_adUnitId == null) {
       logger.e('앱 오픈 광고 ID가 없습니다.');
       if (!_appOpenAdCompleter.isCompleted) {
@@ -45,6 +51,8 @@ class AppOpenAdService {
       return;
     }
 
+    _isLoadingAd = true; // 로딩 시작
+
     await AppOpenAd.load(
       adUnitId: _adUnitId!,
       request: const AdRequest(),
@@ -52,26 +60,43 @@ class AppOpenAdService {
         onAdLoaded: (ad) {
           _appOpenAd = ad;
           _isAdLoaded = true;
+          _isLoadingAd = false; // 로딩 종료
           logger.i('AppOpenAd loaded.');
-          if (!_appOpenAdCompleter.isCompleted) {
-            _appOpenAdCompleter.complete(); // 로드 성공 시 complete
-          }
+          _completeCompleter();
         },
         onAdFailedToLoad: (error) {
           _isAdLoaded = false;
+          _isLoadingAd = false; // 로딩 종료
           logger.e('AppOpenAd failed to load: $error');
-          if (!_appOpenAdCompleter.isCompleted) {
-            _appOpenAdCompleter.complete(); // 로드 실패 시에도 complete
-          }
+          _completeCompleter();
+
+          // 로드 실패 시 30초 후 재시도 (무한 재시도 방지를 위해 횟수 제한을 둘 수도 있음)
+          Future.delayed(const Duration(seconds: 30), () {
+            // 앱이 여전히 활성 상태일 때만 재시도
+            if (!_isAdLoaded) {
+              logger.i('Retrying to load AppOpenAd...');
+              _loadAppOpenAd();
+            }
+          });
         },
       ),
     );
   }
 
-  void showAppOpenAdIfAvailable({required VoidCallback onAdDismissed}) {
+  void _completeCompleter() {
+    if (!_appOpenAdCompleter.isCompleted) {
+      _appOpenAdCompleter.complete();
+    }
+  }
+
+  void showAdIfAvailable({required VoidCallback onAdDismissed}) {
     if (_isShowingAd || !_isAdLoaded || _appOpenAd == null) {
       logger.w('AppOpenAd not available or already showing.');
       onAdDismissed();
+      // 광고가 없으면 다음을 위해 로드 시도
+      if (!_isLoadingAd) {
+        _loadAppOpenAd();
+      }
       return;
     }
 
@@ -80,7 +105,7 @@ class AppOpenAdService {
         _isShowingAd = true;
       },
       onAdDismissedFullScreenContent: (ad) {
-        _isShowingAd = true;
+        _isShowingAd = false;
         ad.dispose();
         _appOpenAd = null;
         _isAdLoaded = false;
