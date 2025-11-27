@@ -122,7 +122,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     return MaterialApp(
       navigatorKey: NavigatorService.navigatorKey,
-      title: '내 화초 시들기 전에: 물주기 알림',
+      title: '내 화초 관리: 물주기 알림',
       theme: ThemeData(
           primarySwatch: Colors.green,
           scaffoldBackgroundColor: const Color(0xFFF5F5F3),
