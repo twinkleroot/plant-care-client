@@ -13,12 +13,21 @@ class AppOpenAdService {
   // 로드 중인지 확인하는 플래그 (중복 로드 방지)
   bool _isLoadingAd = false;
 
+  // 광고 일시 중지 플래그
+  bool _isPaused = false;
+
   // 광고 로드 완료를 보장하기 위한 Completer 추가
   Completer<void> _appOpenAdCompleter = Completer<void>();
 
   String? get _adUnitId {
     if (kIsWeb) return '';
     return dotenv.env['GOOGLE_ADMOB_ID_ANDROID_APP_OPEN']!;
+  }
+
+  // 광고 일시 중지 메서드 (로그인, 갤러리 이동 전 호출)
+  void pauseAds() {
+    _isPaused = true;
+    logger.i('앱 오픈 광고가 일시 중지되었습니다. (다음 resume 시 광고 스킵)');
   }
 
   // 모든 광고를 미리 로드합니다. (스플래시 화면에서 호출)
@@ -90,6 +99,14 @@ class AppOpenAdService {
   }
 
   void showAdIfAvailable({required VoidCallback onAdDismissed}) {
+    // 일시 중지 상태인지 먼저 확인
+    if (_isPaused) {
+      logger.i('광고가 일시 중지 상태이므로 표시하지 않습니다.');
+      _isPaused = false; // 플래그를 다시 초기화 (한 번만 스킵)
+      onAdDismissed();
+      return;
+    }
+
     if (_isShowingAd || !_isAdLoaded || _appOpenAd == null) {
       logger.w('AppOpenAd not available or already showing.');
       onAdDismissed();

@@ -2,8 +2,10 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import '../models/plant_create_model.dart';
 import '../services/api_service.dart';
+import '../services/app_open_ad_service.dart';
 import '../utils/logger.dart';
 import '../widgets/banner_ad_widget.dart';
 
@@ -58,6 +60,11 @@ class _PlantAddScreenState extends State<PlantAddScreen> {
   }
 
   Future<void> _pickImage() async {
+    // 갤러리로 이동하기 전, 앱 오픈 광고를 일시 중지시킵니다.
+    if (mounted) {
+      context.read<AppOpenAdService>().pauseAds();
+    }
+
     final picker = ImagePicker();
     final pickedFile = await picker.pickImage(source: ImageSource.gallery);
 

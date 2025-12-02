@@ -13,6 +13,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart'; // DateFormat을 위해 import 추가
 import 'package:url_launcher/url_launcher.dart';
 import '../models/system_config_model.dart';
+import '../services/ad_service.dart';
 import '../services/fcm_update_stream.dart';
 import '../utils/logger.dart';
 import '../widgets/guide_dialog.dart';
@@ -294,14 +295,16 @@ class _PlantListScreenState extends State<PlantListScreen> with WidgetsBindingOb
     try {
       final updatedPlant = await ApiService.waterPlant(plantId);
 
-      // 전면 광고 로직 제거. UI를 즉시 업데이트합니다.
-      if (!mounted) return;
-      final index = _plants.indexWhere((p) => p.plantId == plantId);
-      if (index != -1) {
-        setState(() {
-          _plants[index] = updatedPlant;
-        });
-      }
+      // 전면 광고 표시 (3번에 1번 빈도 제어는 AdService 내부에서 처리됨)
+      AdService.showInterstitialAd(onAdDismissed: () {
+        if (!mounted) return;
+        final index = _plants.indexWhere((p) => p.plantId == plantId);
+        if (index != -1) {
+          setState(() {
+            _plants[index] = updatedPlant;
+          });
+        }
+      });
     } catch (e) {
       logger.e('물 주기 업데이트 실패: $e');
       if (mounted) {

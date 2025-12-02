@@ -2,14 +2,19 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart';
+import 'package:provider/provider.dart';
 import '../screens/plant_list_screen.dart';
 import '../services/api_service.dart';
+import '../services/app_open_ad_service.dart';
 import '../utils/logger.dart';
 
 class LoginScreen extends StatelessWidget {
   const LoginScreen({super.key});
 
   void _loginWithKakao(BuildContext context) async {
+    // Provider를 통해 인스턴스를 가져와서 pauseAds 호출
+    context.read<AppOpenAdService>().pauseAds();
+
     try {
       // 1. FCM 토큰을 먼저 발급받습니다.
       final fcmToken = await FirebaseMessaging.instance.getToken();
@@ -72,33 +77,26 @@ class LoginScreen extends StatelessWidget {
       body: Center(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 50.0),
-          // GestureDetector와 Container를 ElevatedButton으로 변경
-          child: ElevatedButton(
-            onPressed: () => _loginWithKakao(context),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.white, // 배경색을 흰색으로 변경
-              foregroundColor: Colors.grey[300], // 클릭 시 효과 색상
-              elevation: 2, // 약간의 그림자 효과
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // assets/images/kakao_login_medium_narrow.png 파일이 존재해야 합니다.
+              GestureDetector(
+                onTap: () => _loginWithKakao(context),
+                child: Image.asset('assets/images/kakao_login_medium_narrow.png'),
               ),
-              minimumSize: const Size(double.infinity, 50), // 버튼 높이 및 너비 설정
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Image.asset('assets/kakao_symbol.png', width: 24),
-                const SizedBox(width: 10),
-                const Text(
-                  '카카오로 시작하기',
-                  style: TextStyle(
-                    color: Color.fromRGBO(0, 0, 0, 0.85), // 카카오 공식 텍스트 색상
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
+              const SizedBox(height: 24), // 간격 추가
+              // 안내 문구
+              const Text(
+                "잊지 않고 물주기 알림을 보내드리기 위해\n회원가입 및 로그인이 필요합니다.",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.grey,
+                  fontSize: 13,
+                  height: 1.5, // 줄 간격 조절
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),

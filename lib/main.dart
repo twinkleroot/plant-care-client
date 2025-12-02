@@ -1,20 +1,21 @@
 import 'dart:math';
-
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart';
-import 'package:plant_care_app/firebase_options.dart';
-import 'package:plant_care_app/screens/splash_screen.dart';
-import 'package:plant_care_app/services/app_open_ad_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:plant_care_app/utils/navigator_service.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../firebase_options.dart';
+import '../screens/splash_screen.dart';
+import '../services/ad_service.dart';
+import '../services/app_open_ad_service.dart';
 import '../services/fcm_update_stream.dart';
 import '../utils/logger.dart';
+import '../utils/navigator_service.dart';
 
 // 백그라운드 메시지 핸들러
 @pragma('vm:entry-point')
@@ -54,6 +55,8 @@ void main() async {
   // 광고 서비스를 미리 생성합니다.
   final adService = AppOpenAdService();
 
+  AdService.loadInterstitialAd();
+
   // 카카오톡 앱 간 인증에 사용되는 customScheme을 추가합니다.
   KakaoSdk.init(
       nativeAppKey: dotenv.env['KAKAO_NATIVE_APP_KEY'],
@@ -82,6 +85,7 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   bool _isAppInitialized = false;
+  final _storage = const FlutterSecureStorage(); // 토큰 확인용
 
   @override
   void initState() {
@@ -96,15 +100,29 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   }
 
   @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
+  void didChangeAppLifecycleState(AppLifecycleState state) async {
     super.didChangeAppLifecycleState(state);
 
     if (state == AppLifecycleState.resumed) {
       // 앱이 처음 시작될 때(Splash)가 아니라,
       // 백그라운드에서 포그라운드로 돌아왔을 때(Warm Start)만 로직을 수행합니다.
       if (_isAppInitialized) {
+        // 로그인 여부 확인 (토큰이 있어야만 광고 노출)
+        String? token = await _storage.read(key: 'appToken');
+        if (token == null) {
+          logger.i("비로그인 사용자입니다. 앱 오픈 광고를 건너뜁니다.");
+          return;
+        }
+
+        // 전면 광고 쿨다운 확인 (5초 이내에 전면 광고를 닫았다면 건너뜀)
+        if (AdService.recentlyShowedInterstitial) {
+          logger.i("방금 전면 광고를 보았습니다. Warm Start 광고를 건너뜁니다.");
+          return;
+        }
+
         if (Random().nextBool()) {  // 50% 확률로 광고 표시
           logger.i("앱이 포그라운드로 돌아왔습니다. (50% 당첨) 앱 오픈 광고를 시도합니다.");
+          if (!mounted) return;
           // Provider를 통해 인스턴스를 가져와서 메서드 호출
           // listen: false는 이 메서드 내에서 UI를 다시 빌드할 필요가 없기 때문입니다.
           context.read<AppOpenAdService>().showAdIfAvailable(onAdDismissed: () {});

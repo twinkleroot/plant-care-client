@@ -118,7 +118,7 @@ class _PlantCardState extends State<PlantCard> with SingleTickerProviderStateMix
                 radius: 30,
                 backgroundImage: plant.imageUrl != null && plant.imageStatus == 'COMPLETE'
                     ? NetworkImage(plant.imageUrl!)
-                    : const AssetImage('assets/default_plant.png') as ImageProvider, // 'assets/default_plant.png' 이미지 필요
+                    : const AssetImage('assets/images/default_plant.png') as ImageProvider, // 'assets/default_plant.png' 이미지 필요
                 backgroundColor: Colors.grey[200],
                 child: plant.imageStatus == 'PROCESSING'
                     ? const CircularProgressIndicator(strokeWidth: 2)
@@ -147,7 +147,7 @@ class _PlantCardState extends State<PlantCard> with SingleTickerProviderStateMix
                 ),
               ),
               ElevatedButton(
-                onPressed: (_isWatering || isWateredToday) ? null : _onWaterButtonPressed, // ❗️ 로딩 상태에 따라 버튼 비활성화
+                onPressed: (_isWatering || isWateredToday) ? null : _onWaterButtonPressed, // 로딩 상태에 따라 버튼 비활성화
                 style: ElevatedButton.styleFrom(
                   backgroundColor: isWateredToday ? Colors.grey[300] : Colors.green,
                   disabledBackgroundColor: Colors.grey[300], // 비활성화 시 회색

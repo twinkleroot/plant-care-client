@@ -4,9 +4,12 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import '../models/plant_model.dart';
 import '../models/plant_update_model.dart';
+import '../services/ad_service.dart';
+import '../services/app_open_ad_service.dart';
 import '../services/api_service.dart';
 import '../widgets/banner_ad_widget.dart';
 import '../utils/logger.dart';
+import 'package:provider/provider.dart';
 
 class PlantDetailScreen extends StatefulWidget {
   final String plantId;
@@ -105,6 +108,11 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
   }
 
   Future<void> _pickImage() async {
+    // 갤러리로 이동하기 전, 앱 오픈 광고를 일시 중지시킵니다.
+    if (mounted) {
+      context.read<AppOpenAdService>().pauseAds();
+    }
+
     final picker = ImagePicker();
     final pickedFile = await picker.pickImage(source: ImageSource.gallery);
 
@@ -181,18 +189,26 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
       // 1. 텍스트 정보 업데이트 (이미지가 있어도 null로 보내는 로직은 ApiService 내부 또는 PlantService에서 처리)
       final updatedPlant = await ApiService.updatePlant(widget.plantId, updateData, null);
 
-      // 2. 이미지가 있다면 별도 업로드 API 호출
+      // 2. 새 이미지가 있다면 별도 업로드 API 호출
       if (isImageUpdate) {
-        await _showImageRefreshDialog();
-        // 이미지 업로드 전용 API 호출
         await ApiService.uploadPlantImage(widget.plantId, _selectedImage!);
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('정보가 수정되었습니다.')));
       }
-      if (mounted) {
-        // 텍스트든 이미지든, 수정된 최신 Plant 객체를 반환하며 닫습니다.
-        Navigator.of(context).pop(updatedPlant);
-      }
+
+      AdService.showInterstitialAd(onAdDismissed: () async {
+        if (!mounted) return;
+
+        // 이미지를 수정(새 이미지 업로드)한 경우에만 안내 다이얼로그
+        // (단순 삭제의 경우 즉시 반영되므로 다이얼로그 불필요)
+        if (isImageUpdate) {
+          await _showImageRefreshDialog();
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('정보가 수정되었습니다.')));
+        }
+
+        if (mounted) {
+          Navigator.of(context).pop(updatedPlant);
+        }
+      });
     } catch (e) {
       logger.e('식물 정보 수정 실패: $e');
       if (mounted) {
@@ -320,7 +336,7 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
             backgroundColor: Colors.grey[200],
             backgroundImage: plant.imageUrl != null
                 ? NetworkImage(plant.imageUrl!)
-                : const AssetImage('assets/default_plant.png') as ImageProvider,
+                : const AssetImage('assets/images/default_plant.png') as ImageProvider,
           ),
         ),
         const SizedBox(height: 16),
@@ -407,7 +423,7 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
     } else if (!_isImageDeleted && plant.imageUrl != null) {
       bgImage = NetworkImage(plant.imageUrl!);
     } else {
-      bgImage = const AssetImage('assets/default_plant.png');
+      bgImage = const AssetImage('assets/images/default_plant.png');
     }
 
     // 삭제 버튼을 보여줄지 여부 (이미지가 있을 때만)
