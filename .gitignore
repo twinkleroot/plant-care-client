@@ -68,3 +68,4 @@ doc/api/
 *.js.map
 
 .flutter-plugins
+/my-app/src/main/resources/my-plant-care-0202-firebase.json
